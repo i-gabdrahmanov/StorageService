@@ -5,9 +5,12 @@ spring:
     url: jdbc:postgresql://db:5432/mydatabase
     username: postgres
     password: postgres
+    hikari:
+      data-source-properties:
+        reWriteBatchedInserts: true     # Для PostgreSQL
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: none
     show-sql: true
 
     properties:
@@ -15,6 +18,11 @@ spring:
       hibernate:
         format_sql: true
         use_sql_comments: true
+        jdbc:
+          batch_size: 50        # Размер пакета
+          order_inserts: true     # Оптимизация вставок
+          order_updates: true     # Оптимизация обновлений
+
 logging:
   level:
     root: INFO
