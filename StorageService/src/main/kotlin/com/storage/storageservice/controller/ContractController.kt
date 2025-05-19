@@ -22,4 +22,10 @@ class ContractController(
         val response = contractService.findByName(name)
         return ResponseEntity.ok(response)
     }
+
+    @PostMapping("/{count}/generate")
+    fun generateContracts(@PathVariable count: Int): ResponseEntity<Unit> {
+        contractService.generateContracts(count)
+        return ResponseEntity.ok().build()
+    }
 }

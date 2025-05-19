@@ -9,6 +9,7 @@ import java.util.*
 class Document {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(columnDefinition = "UUID")
     var id: UUID? = null
 
     @Column(nullable = false)
