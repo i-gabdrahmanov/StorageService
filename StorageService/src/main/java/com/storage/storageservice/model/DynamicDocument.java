@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -27,5 +28,6 @@ public class DynamicDocument extends AbstractEntity {
     @Column(nullable = false)
     private LocalDateTime createDateTime = LocalDateTime.now();
 
-
+    @OneToMany(fetch = FetchType.LAZY)
+    List<DynamicFieldInfoStr> strs;
 }

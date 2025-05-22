@@ -8,7 +8,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @MappedSuperclass
-public abstract class DynamicFieldInfoCommon<T> extends DynamicFieldInfo<T> {
+public abstract class DynamicFieldInfoCommon<T> extends DynamicFieldInfo {
 
     @Column(name = "property_value")
     private T propertyValue;
