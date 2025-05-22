@@ -14,8 +14,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DocumentType extends AbstractEntity {
-    @Column(name = "document_name")
-    private String documentName;
+    @Column(name = "document_name", nullable = false)
+    private String name;
 
     @OneToMany(fetch = FetchType.LAZY)
     private List<PropertyType> propertyTypes;
