@@ -36,7 +36,8 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
     @Override
     @Transactional(readOnly = true)
     public DocumentTypeDto getDocumentByName(String documentName) {
-        DocumentType documentType = documentTypeRepository.getDocumentTypeByName(documentName);
+        DocumentType documentType = documentTypeRepository.getDocumentTypeByName(documentName)
+                .orElseThrow(() -> new FindException("DocumentType by name %s not found".formatted(documentName)));
         return DocumentTypeDto.builder()
                 .documentTypeName(documentType.getName())
                 .documentTypeId(documentType.getId())

@@ -19,7 +19,7 @@ public class DocumentTypeController {
     }
 
     @GetMapping
-    public ResponseEntity<DocumentTypeDto> getDocumentType(String documentTypeName) {
+    public ResponseEntity<DocumentTypeDto> getDocumentType(@RequestParam("name") String documentTypeName) {
         return ResponseEntity.ok(service.getDocumentByName(documentTypeName));
     }
 }
