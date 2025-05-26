@@ -8,5 +8,7 @@ import lombok.*;
 @NoArgsConstructor
 public class DynamicFieldDto {
 
-    private String name;
+    private String propertyName;
+    private String contentType;
+    private Object value;
 }

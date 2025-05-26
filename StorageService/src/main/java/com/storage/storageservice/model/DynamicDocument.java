@@ -8,7 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -28,6 +29,6 @@ public class DynamicDocument extends AbstractEntity {
     @Column(nullable = false)
     private LocalDateTime createDateTime = LocalDateTime.now();
 
-    @OneToMany(fetch = FetchType.LAZY)
-    List<DynamicFieldInfoStr> strs;
+    @OneToMany(mappedBy = "dynamicDocument", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<DynamicFieldInfoStr> stringDynamicFields = new HashSet<>();
 }

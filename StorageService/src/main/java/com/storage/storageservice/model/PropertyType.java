@@ -15,6 +15,8 @@ public class PropertyType extends AbstractEntity {
 
     private String propertyName;
 
+    private String contentType; // may be reference to dictionary
+
     @ManyToOne
     @JoinColumn(name = "document_type_id")
     private DocumentType documentType;
