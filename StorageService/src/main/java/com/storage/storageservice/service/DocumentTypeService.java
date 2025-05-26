@@ -11,4 +11,6 @@ public interface DocumentTypeService {
     void addDocumentType(DocumentTypeDto dto);
 
     DocumentType getDocumentTypeById(@NotNull UUID id);
+
+    DocumentTypeDto getDocumentByName(String documentName);
 }

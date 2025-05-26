@@ -4,10 +4,8 @@ import com.storage.storageservice.dto.DocumentTypeDto;
 import com.storage.storageservice.service.DocumentTypeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("api/v2/documentType")
@@ -18,5 +16,10 @@ public class DocumentTypeController {
     @PostMapping("new")
     public void addNewDocumentType(@RequestBody @Valid DocumentTypeDto request) {
         service.addDocumentType(request);
+    }
+
+    @GetMapping
+    public ResponseEntity<DocumentTypeDto> getDocumentType(String documentTypeName) {
+        return ResponseEntity.ok(service.getDocumentByName(documentTypeName));
     }
 }

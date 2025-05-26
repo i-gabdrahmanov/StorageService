@@ -17,6 +17,7 @@ import java.util.UUID;
 public class DocumentTypeServiceImpl implements DocumentTypeService {
 
     private final DocumentTypeRepository documentTypeRepository;
+
     @Override
     @Transactional
     public void addDocumentType(DocumentTypeDto dto) {
@@ -30,5 +31,15 @@ public class DocumentTypeServiceImpl implements DocumentTypeService {
     public DocumentType getDocumentTypeById(@NotNull UUID id) {
         return documentTypeRepository.findById(id)
                 .orElseThrow(() -> new FindException("DocumentType by id %s not found".formatted(id)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DocumentTypeDto getDocumentByName(String documentName) {
+        DocumentType documentType = documentTypeRepository.getDocumentTypeByName(documentName);
+        return DocumentTypeDto.builder()
+                .documentTypeName(documentType.getName())
+                .documentTypeId(documentType.getId())
+                .build();
     }
 }
