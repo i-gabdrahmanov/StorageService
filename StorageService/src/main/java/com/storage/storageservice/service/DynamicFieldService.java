@@ -1,5 +1,9 @@
 package com.storage.storageservice.service;
 
+import com.storage.storageservice.dto.DynamicFieldDto;
+
+import java.util.List;
+
 public interface DynamicFieldService {
 
     void addField(DynamicFieldDto dto);
