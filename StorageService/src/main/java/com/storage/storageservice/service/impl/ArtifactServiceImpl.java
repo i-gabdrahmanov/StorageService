@@ -1,5 +1,6 @@
 package com.storage.storageservice.service.impl;
 
+import com.google.common.collect.Lists;
 import com.storage.storageservice.dto.ArtifactDto;
 import com.storage.storageservice.model.Artifact;
 import com.storage.storageservice.repository.ArtifactRepository;
@@ -8,15 +9,67 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+
 @Service
 @RequiredArgsConstructor
 public class ArtifactServiceImpl implements ArtifactService {
 
-    public final ArtifactRepository artifactRepository;
+    private final ArtifactRepository artifactRepository;
+    private final ExecutorService executorService;
+
     @Override
     @Transactional
     public void addNewArtifact(ArtifactDto dto) {
-       addNewArtifactRecursive(dto, null);
+        addNewArtifactRecursive(dto, null);
+    }
+
+    @Override
+    public void generateSomeArtifacts(int count) {
+        List<Artifact> result = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            Artifact artifact = Artifact.builder()
+                    .name(generateRandomString(20))
+                    .surname(generateRandomString(20))
+                    .payload(Map.of(
+                            "series", generateRandomString(20),
+                            "department", generateRandomString(20),
+                            "price", ThreadLocalRandom.current().nextInt()
+                    ))
+                    .children(List.of(
+                            Artifact.builder()
+                                    .name("Random")
+                                    .surname("Random")
+                                    .payload(Map.of(
+                                            "series", generateRandomString(20),
+                                            "department", generateRandomString(20),
+                                            "price", ThreadLocalRandom.current().nextInt()
+                                    ))
+                                    .build(),
+                            Artifact.builder()
+                                    .name("Random")
+                                    .surname("Random")
+                                    .payload(Map.of(
+                                            "series", generateRandomString(20),
+                                            "department", generateRandomString(20),
+                                            "price", ThreadLocalRandom.current().nextInt()
+                                    ))
+                                    .build()
+                    ))
+                    .build();
+            result.add(artifact);
+        }
+        List<List<Artifact>> partition = Lists.partition(result, 10);
+        partition.forEach(p -> {
+            executorService.submit(() -> {
+                System.out.println(Thread.currentThread().getName());
+                artifactRepository.saveAll(p);
+            });
+        });
     }
 
     private void addNewArtifactRecursive(ArtifactDto dto, Artifact parent) {
@@ -31,5 +84,12 @@ public class ArtifactServiceImpl implements ArtifactService {
             dto.getChildren().forEach(c -> addNewArtifactRecursive(c, artifact));
         }
         artifactRepository.save(artifact);
+    }
+
+    private String generateRandomString(int length) {
+        return ThreadLocalRandom.current()
+                .ints(length, 'a', 'z' + 1)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
     }
 }
