@@ -63,13 +63,21 @@ public class ArtifactServiceImpl implements ArtifactService {
                     .build();
             result.add(artifact);
         }
+
         List<List<Artifact>> partition = Lists.partition(result, 10);
-        partition.forEach(p -> {
-            executorService.submit(() -> {
-                System.out.println(Thread.currentThread().getName());
-                artifactRepository.saveAll(p);
-            });
-        });
+        partition.forEach(p ->
+            executorService.submit(() -> artifactRepository.saveAll(p)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ArtifactDto getArtByJsonField(String key, String value) {
+        Artifact art = artifactRepository.findByJsonField(key, value);
+        return ArtifactDto.builder()
+                .name(art.getName())
+                .surname(art.getSurname())
+                .payload(art.getPayload())
+                .build();
     }
 
     private void addNewArtifactRecursive(ArtifactDto dto, Artifact parent) {

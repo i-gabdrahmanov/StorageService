@@ -7,4 +7,6 @@ public interface ArtifactService {
     void addNewArtifact(ArtifactDto dto);
 
     void generateSomeArtifacts(int count);
+
+    ArtifactDto getArtByJsonField(String key, String value);
 }

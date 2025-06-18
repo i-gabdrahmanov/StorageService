@@ -15,10 +15,13 @@ services:
 
   db:
     image: postgres:16.3
+    shm_size: 1GB
     environment:
       POSTGRES_DB: mydatabase
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
     ports:
       - "5432:5432"
     volumes:
