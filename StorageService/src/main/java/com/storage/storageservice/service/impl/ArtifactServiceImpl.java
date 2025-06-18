@@ -1,5 +1,7 @@
 package com.storage.storageservice.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.storage.storageservice.dto.ArtifactDto;
 import com.storage.storageservice.model.Artifact;
@@ -21,6 +23,7 @@ public class ArtifactServiceImpl implements ArtifactService {
 
     private final ArtifactRepository artifactRepository;
     private final ExecutorService executorService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -73,6 +76,24 @@ public class ArtifactServiceImpl implements ArtifactService {
     @Transactional(readOnly = true)
     public ArtifactDto getArtByJsonField(String key, String value) {
         Artifact art = artifactRepository.findByJsonField(key, value);
+        // TODO to mapper
+        return ArtifactDto.builder()
+                .name(art.getName())
+                .surname(art.getSurname())
+                .payload(art.getPayload())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ArtifactDto getArtByNativeJsonFields(Map<String, Object> request) {
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+        Artifact art = artifactRepository.findByJson(json);
         return ArtifactDto.builder()
                 .name(art.getName())
                 .surname(art.getSurname())

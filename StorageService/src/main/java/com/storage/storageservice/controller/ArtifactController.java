@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("api/v2/artifact")
 @RequiredArgsConstructor
@@ -24,11 +26,17 @@ public class ArtifactController {
     }
 
     @GetMapping
-    public ResponseEntity<ArtifactDto> getByJsonDepartment(
+    public ResponseEntity<ArtifactDto> getByJsonField(
             @RequestParam String key,
             @RequestParam String value
     ) {
         ArtifactDto artByJsonName = service.getArtByJsonField(key, value);
+        return ResponseEntity.ok(artByJsonName);
+    }
+
+    @GetMapping("json")
+    public ResponseEntity<ArtifactDto> getByNativeJsonFields (@RequestBody Map<String, Object> request) {
+        ArtifactDto artByJsonName = service.getArtByNativeJsonFields(request);
         return ResponseEntity.ok(artByJsonName);
     }
 }
