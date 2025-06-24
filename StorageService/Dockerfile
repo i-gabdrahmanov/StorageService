@@ -1,14 +1,29 @@
-# Этап сборки (используем корректный образ Gradle)
-FROM gradle:8.4-jdk21-jammy AS build
+# Этап 1: Кэширование зависимостей
+FROM gradle:8.4-jdk21-jammy as cache
 WORKDIR /app
-COPY . .
-RUN gradle build --no-daemon
+COPY build.gradle settings.gradle ./
+RUN gradle dependencies --no-daemon > /dev/null
 
-# Этап запуска (используем корректный образ Temurin JRE)
-FROM eclipse-temurin:21-jre-jammy
+# Этап 2: Сборка приложения
+FROM gradle:8.4-jdk21-jammy as builder
 WORKDIR /app
-COPY --from=build /app/build/libs/*.jar app.jar
 
-EXPOSE 8080
+# Копируем кэш зависимостей из первого этапа
+COPY --from=cache /home/gradle/.gradle /home/gradle/.gradle
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Копируем исходный код (это делается после копирования кэша)
+COPY src ./src
+COPY build.gradle settings.gradle ./
+
+# Собираем приложение (будет выполняться при изменении исходного кода)
+RUN gradle build \
+    --no-daemon \
+    --parallel \
+    --build-cache \
+    -x test \
+    -x check
+
+# Этап 3: Финальный образ
+FROM eclipse-temurin:21-jre
+COPY --from=builder /app/build/libs/*.jar /app/app.jar
+CMD ["java", "-jar", "/app/app.jar"]
