@@ -35,6 +35,13 @@ dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation("org.postgresql:postgresql:42.7.3")
     implementation 'com.google.guava:guava:31.1-jre'
+
+    implementation 'org.apache.ignite:ignite-core:3.0.0'
+    implementation 'org.apache.ignite:ignite-spring:3.0.0'
+    implementation 'org.apache.ignite:ignite-client:3.0.0'
+
+    implementation 'org.apache.ignite:ignite-spring-cache-ext:1.0.0' // Для Spring Cache integration
+
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
     annotationProcessor 'org.projectlombok:lombok'

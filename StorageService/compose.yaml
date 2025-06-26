@@ -1,27 +1,30 @@
+version: '3.8'
+
 services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
+  ignite:
+    image: apacheignite/ignite:3.0.0
+    container_name: ignite
+    hostname: ignite
+    volumes:
+      - ./ignite-config:/ignite/config
+    command: ["--config-path", "/ignite/config/ignite.conf"]
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydatabase
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-    depends_on:
-      db:
-        condition: service_healthy
+      IGNITE_QUIET: "false"
+      IGNITE_NODE_NAME: ignite-node
+    ports:
+      - "10800:10800"  # Client connection port
+      - "11211:11211"  # Memcached protocol port
+      - "10300:10300"  # REST API port
     networks:
       - app-network
 
   db:
     image: postgres:16.3
-    shm_size: 1GB
+    container_name: db
     environment:
       POSTGRES_DB: mydatabase
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_SHARED_BUFFERS: 256MB
-      POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,6 +32,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+
+  app:
+    build: .
+    container_name: app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydatabase
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_IGNITE_NODES: ignite:10800
+    depends_on:
+      db:
+        condition: service_healthy
+      ignite:
+        condition: service_started
     networks:
       - app-network
 

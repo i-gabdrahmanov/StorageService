@@ -1,4 +1,6 @@
 spring:
+  ignite:
+    nodes: ${SPRING_IGNITE_NODES}
   application:
     name: StorageService
   datasource:
