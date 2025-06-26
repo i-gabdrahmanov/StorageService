@@ -32,6 +32,20 @@ dependencies {
     implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
     implementation 'org.hibernate.validator:hibernate-validator:8.0.1.Final'
     implementation 'org.glassfish:jakarta.el:4.0.2'
+
+    implementation 'org.apache.ignite:ignite-core:2.16.0'
+    implementation 'org.apache.ignite:ignite-spring:2.16.0'
+
+    implementation 'org.apache.ignite:ignite-spring-cache-ext:1.0.0'
+
+
+    configurations {
+        all {
+            exclude group: 'org.apache.ignite', module: 'ignite-jdbc'
+            exclude group: 'org.apache.ignite', module: 'ignite-indexing'
+        }
+    }
+
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation("org.postgresql:postgresql:42.7.3")
     implementation 'com.google.guava:guava:31.1-jre'

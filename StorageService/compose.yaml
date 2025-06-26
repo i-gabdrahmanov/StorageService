@@ -1,15 +1,22 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydatabase
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      IGNITE_CLUSTER_NAME: spring-ignite-cluster
+      IGNITE_DISCOVERY_ADDRESSES: ignite:47500  # Используем имя сервиса
+    command: sh -c "sleep 15 && java -jar /app.jar"  # Задержка для старта Ignite
     depends_on:
       db:
         condition: service_healthy
+      ignite:
+        condition: service_started
     networks:
       - app-network
 
@@ -25,12 +32,36 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mydatabase"]
       interval: 5s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"
     networks:
       - app-network
+
+  ignite:
+    image: apacheignite/ignite:2.16.0
+    environment:
+      - IGNITE_NO_ASCII=true
+      - IGNITE_CLUSTER_NAME=spring-ignite-cluster
+      - IGNITE_DISCOVERY_ADDRESSES=ignite:47500
+      - IGNITE_WAL_MMAP=false
+      - IGNITE_WAL_SEGMENT_SIZE=16777216
+      - IGNITE_QUIET=false
+      - IGNITE_LOCAL_HOST=0.0.0.0  # Критически важно!
+    ports:
+      - "47500:47500"
+      - "47100:47100"
+      - "10800:10800"
+    volumes:
+      - ignite-data:/opt/ignite/work
+      - ./ignite-config.xml:/opt/ignite/config/default-config.xml  # Монтируем конфиг
+    networks:
+      app-network:
+        aliases:
+          - ignite  # Явный алиас
 
 networks:
   app-network:
@@ -38,3 +69,6 @@ networks:
 
 volumes:
   pgdata:
+    driver: local
+  ignite-data:
+    driver: local

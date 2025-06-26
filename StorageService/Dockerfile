@@ -7,23 +7,31 @@ RUN gradle dependencies --no-daemon > /dev/null
 # Этап 2: Сборка приложения
 FROM gradle:8.4-jdk21-jammy as builder
 WORKDIR /app
-
-# Копируем кэш зависимостей из первого этапа
 COPY --from=cache /home/gradle/.gradle /home/gradle/.gradle
-
-# Копируем исходный код (это делается после копирования кэша)
 COPY src ./src
 COPY build.gradle settings.gradle ./
-
-# Собираем приложение (будет выполняться при изменении исходного кода)
-RUN gradle build \
-    --no-daemon \
-    --parallel \
-    --build-cache \
-    -x test \
-    -x check
+RUN gradle build --no-daemon --parallel --build-cache -x test -x check
 
 # Этап 3: Финальный образ
 FROM eclipse-temurin:21-jre
-COPY --from=builder /app/build/libs/*.jar /app/app.jar
-CMD ["java", "-jar", "/app/app.jar"]
+
+# Устанавливаем curl для healthcheck
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Healthcheck для проверки готовности приложения
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# Основные команды запуска
+ENTRYPOINT ["java", \
+    "--add-opens", "java.base/java.nio=ALL-UNNAMED", \
+    "--add-opens", "java.base/java.lang=ALL-UNNAMED", \
+    "-DIGNITE_NO_JDBC=true", \
+    "-DIGNITE_SQL_ENABLE=false", \
+    "-Dspring.datasource.driver-class-name=org.postgresql.Driver", \
+    "-XX:+UseContainerSupport", \
+    "-XX:MaxRAMPercentage=75.0", \
+    "-jar", "app.jar"]

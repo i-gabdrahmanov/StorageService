@@ -1,4 +1,8 @@
 spring:
+  sql:
+    init:
+      mode: never
+      continue-on-error: false
   application:
     name: StorageService
   datasource:
@@ -8,6 +12,7 @@ spring:
     hikari:
       data-source-properties:
         reWriteBatchedInserts: true     # Для PostgreSQL
+      driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
@@ -22,6 +27,7 @@ spring:
           batch_size: 50        # Размер пакета
           order_inserts: true     # Оптимизация вставок
           order_updates: true     # Оптимизация обновлений
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 logging:
   level:
