@@ -34,7 +34,9 @@ dependencies {
     implementation 'org.glassfish:jakarta.el:4.0.2'
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation("org.postgresql:postgresql:42.7.3")
-    implementation 'com.google.guava:guava:31.1-jre'
+    implementation 'com.google.guava:guava:32.0.1-android'
+    implementation 'io.netty:netty-all:4.1.121.Final'
+    implementation("com.googlecode.xmemcached:xmemcached:2.4.7")
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
     annotationProcessor 'org.projectlombok:lombok'

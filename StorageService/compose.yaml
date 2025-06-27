@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   app:
     build: .
@@ -7,9 +9,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydatabase
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      MEMCACHED_HOST: memcached
+      MEMCACHED_PORT: 11211
     depends_on:
       db:
         condition: service_healthy
+      memcached:
+        condition: service_started
     networks:
       - app-network
 
@@ -31,6 +37,24 @@ services:
       retries: 5
     networks:
       - app-network
+
+  memcached:
+    image: memcached:alpine3.17  # Используем alpine-образ
+    ports:
+      - "11211:11211"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "11211"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Опциональные настройки для alpine
+    command: ["-m", "64", "-vv"]  # 64MB памяти, verbose logging
+    deploy:
+      resources:
+        limits:
+          memory: 128M  # Лимит памяти для контейнера
 
 networks:
   app-network:
