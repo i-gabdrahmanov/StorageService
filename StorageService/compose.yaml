@@ -1,19 +1,26 @@
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+
 services:
-  app:
-    build: .
+  zookeeper:
+    image: zookeeper:3.8
+    container_name: zookeeper
+    hostname: zookeeper  # Фиксирует имя в DNS
     ports:
-      - "8080:8080"
+      - "2181:2181"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydatabase
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-      MEMCACHED_HOST: memcached
-      MEMCACHED_PORT: 11211
-    depends_on:
-      db:
-        condition: service_healthy
-      memcached:
-        condition: service_started
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zookeeper:2888:3888;2181
+      ZOO_4LW_COMMANDS_WHITELIST: "*"
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
 
@@ -26,10 +33,12 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_SHARED_BUFFERS: 256MB
       POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mydatabase"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -37,7 +46,7 @@ services:
       - app-network
 
   memcached:
-    image: memcached:alpine3.17  # Используем alpine-образ
+    image: memcached:alpine3.17
     ports:
       - "11211:11211"
     networks:
@@ -47,16 +56,41 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    # Опциональные настройки для alpine
-    command: ["-m", "64", "-vv"]  # 64MB памяти, verbose logging
-    deploy:
-      resources:
-        limits:
-          memory: 128M  # Лимит памяти для контейнера
+    command: ["-m", "64", "-vv"]
 
-networks:
-  app-network:
-    driver: bridge
+  zoonavigator:
+    image: elkozmon/zoonavigator:latest
+    ports:
+      - "9000:9000"
+    environment:
+      HTTP_PORT: 9000
+      ZK_HOSTS: zookeeper:2181
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - app-network
 
-volumes:
-  pgdata:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+      - "5005:5005"  # Пробрасываем порт дебаггера
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/mydatabase
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      MEMCACHED_HOST: memcached
+      MEMCACHED_PORT: 11211
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+      SPRING_CLOUD_ZOOKEEPER_CONNECT_STRING: zookeeper:2181
+      # SPRING_PROFILES_ACTIVE: dev
+    depends_on:
+      db:
+        condition: service_healthy
+      memcached:
+        condition: service_started
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - app-network

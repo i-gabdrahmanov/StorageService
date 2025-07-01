@@ -36,6 +36,11 @@ dependencies {
     implementation("org.postgresql:postgresql:42.7.3")
     implementation 'com.google.guava:guava:32.0.1-android'
     implementation 'io.netty:netty-all:4.1.121.Final'
+    implementation 'org.apache.zookeeper:zookeeper:3.8.2'
+
+    implementation 'org.apache.curator:curator-framework:5.5.0'
+    implementation 'org.apache.curator:curator-recipes:5.5.0'
+
     implementation 'com.googlecode.xmemcached:xmemcached:2.4.8'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
