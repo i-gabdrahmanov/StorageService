@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Inheritance(strategy = InheritanceType.JOINED)
-public class Document extends AbstractEntity {
+public abstract class Document extends AbstractEntity {
 
     @Column(nullable = false)
     private String name;

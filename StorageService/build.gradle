@@ -38,13 +38,16 @@ dependencies {
     implementation 'io.netty:netty-all:4.1.121.Final'
     implementation 'org.apache.zookeeper:zookeeper:3.8.2'
 
+    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.hibernate:hibernate-jpamodelgen:6.6.20.Final'
+
     implementation 'org.apache.curator:curator-framework:5.5.0'
     implementation 'org.apache.curator:curator-recipes:5.5.0'
 
     implementation 'com.googlecode.xmemcached:xmemcached:2.4.8'
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
-    annotationProcessor 'org.projectlombok:lombok'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
