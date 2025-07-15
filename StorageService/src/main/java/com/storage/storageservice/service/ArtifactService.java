@@ -1,6 +1,7 @@
 package com.storage.storageservice.service;
 
 import com.storage.storageservice.dto.ArtifactDto;
+import com.storage.storageservice.dto.CustomArtifactRequest;
 
 import java.util.Map;
 
@@ -13,4 +14,6 @@ public interface ArtifactService {
     ArtifactDto getArtByJsonField(String key, String value);
 
     ArtifactDto getArtByNativeJsonFields(Map<String, Object> request);
+
+    ArtifactDto getCustomById(CustomArtifactRequest request);
 }

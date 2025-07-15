@@ -33,4 +33,7 @@ public class Artifact extends AbstractEntity {
 
     @OneToMany(mappedBy = "parent")
     private List<Artifact> children;
+
+    @ManyToOne
+    private Employee employee;
 }

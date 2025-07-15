@@ -7,7 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.UUID;
 
-public interface ArtifactRepository extends JpaRepository<Artifact, UUID> {
+public interface ArtifactRepository extends JpaRepository<Artifact, UUID>, CustomArtifactRepository {
 
     @Query(value = """
             SELECT * FROM artifact

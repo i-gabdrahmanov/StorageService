@@ -4,9 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.storage.storageservice.dto.ArtifactDto;
+import com.storage.storageservice.dto.CustomArtifactRequest;
 import com.storage.storageservice.model.Artifact;
 import com.storage.storageservice.repository.ArtifactRepository;
 import com.storage.storageservice.service.ArtifactService;
+import com.storage.storageservice.utils.DynamicDtoMapper;
+import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -99,6 +102,13 @@ public class ArtifactServiceImpl implements ArtifactService {
                 .surname(art.getSurname())
                 .payload(art.getPayload())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public ArtifactDto getCustomById(CustomArtifactRequest request) {
+        Tuple tuple = artifactRepository.findProjectedById(request.getId(), request.getRequiredResponseFields());
+        return DynamicDtoMapper.mapToDto(tuple, request.getRequiredResponseFields(), ArtifactDto.class);
     }
 
     private void addNewArtifactRecursive(ArtifactDto dto, Artifact parent) {
