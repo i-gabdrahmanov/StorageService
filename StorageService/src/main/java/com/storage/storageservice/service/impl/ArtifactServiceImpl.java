@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class ArtifactServiceImpl implements ArtifactService {
 
     private final ArtifactRepository artifactRepository;
+    private final DynamicDtoMapper mapper;
     private final ExecutorService executorService;
     private final ObjectMapper objectMapper;
 
@@ -108,7 +109,7 @@ public class ArtifactServiceImpl implements ArtifactService {
     @Transactional
     public ArtifactDto getCustomById(CustomArtifactRequest request) {
         Tuple tuple = artifactRepository.findProjectedById(request.getId(), request.getRequiredResponseFields());
-        return DynamicDtoMapper.mapToDto(tuple, request.getRequiredResponseFields(), ArtifactDto.class);
+        return mapper.mapToDto(tuple, request.getRequiredResponseFields(), ArtifactDto.class);
     }
 
     private void addNewArtifactRecursive(ArtifactDto dto, Artifact parent) {
