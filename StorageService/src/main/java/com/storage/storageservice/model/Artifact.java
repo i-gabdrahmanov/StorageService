@@ -40,6 +40,6 @@ public class Artifact extends AbstractEntity {
     @ManyToOne
     private Employee employee;
 
-    @OneToMany
+    @OneToMany(mappedBy = "artifact", cascade = CascadeType.ALL)
     private List<Document> documents;
 }

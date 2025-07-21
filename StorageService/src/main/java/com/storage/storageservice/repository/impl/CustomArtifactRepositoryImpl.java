@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import jakarta.persistence.Query;
 
 @Repository
 @RequiredArgsConstructor
@@ -22,27 +23,24 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
     private final EntityManager em;
 
     @Override
-    public Tuple findProjectedById(UUID id, Set<String> fields) {
+    public List<Tuple> findProjectedById(UUID id, Set<String> fields) {
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createQuery(Tuple.class);
         Root<Artifact> root = query.from(Artifact.class);
 
-        // Если fields пуст или null, выбираем все поля
         if (fields == null || fields.isEmpty()) {
             fields = getAllFieldsFromEntity(root);
         }
 
-        // Динамический SELECT
         List<Selection<?>> selections = fields.stream()
                 .map(field -> CriteriaFieldResolver.resolveSelection(root, field, cb))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        // WHERE-условие
         query.multiselect(selections)
                 .where(cb.equal(root.get(Artifact_.ID), id));
 
-        return em.createQuery(query).getSingleResult();
+        return em.createQuery(query).getResultList();
     }
 
     private Set<String> getAllFieldsFromEntity(Root<Artifact> root) {

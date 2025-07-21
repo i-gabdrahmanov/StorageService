@@ -11,11 +11,14 @@ public class CriteriaFieldResolver {
         String[] parts = fieldPath.split("\\.");
         From<?, ?> currentFrom = from;
 
-        // Обрабатываем вложенные свойства
+        // Для всех частей пути кроме последней
         for (int i = 0; i < parts.length - 1; i++) {
-            currentFrom = getOrCreateJoin(currentFrom, parts[i]);
+            String part = parts[i];
+            // Всегда делаем join для промежуточных частей пути
+            currentFrom = getOrCreateJoin(currentFrom, part);
         }
 
+        // Для последней части просто возвращаем get с алиасом
         return currentFrom.get(parts[parts.length - 1]).alias(fieldPath);
     }
 
@@ -26,6 +29,7 @@ public class CriteriaFieldResolver {
                 return join;
             }
         }
+        // Создаем новый LEFT JOIN
         return from.join(attribute, JoinType.LEFT);
     }
 }

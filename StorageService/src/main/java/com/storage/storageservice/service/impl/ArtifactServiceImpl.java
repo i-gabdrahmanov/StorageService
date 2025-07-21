@@ -108,8 +108,8 @@ public class ArtifactServiceImpl implements ArtifactService {
     @Override
     @Transactional
     public ArtifactDto getCustomById(CustomArtifactRequest request) {
-        Tuple tuple = artifactRepository.findProjectedById(request.getId(), request.getRequiredResponseFields());
-        return mapper.mapToDto(tuple, request.getRequiredResponseFields(), ArtifactDto.class);
+        List<jakarta.persistence.Tuple> tuples = artifactRepository.findProjectedById(request.getId(), request.getRequiredResponseFields());
+        return mapper.mapToDto(tuples, request.getRequiredResponseFields(), ArtifactDto.class);
     }
 
     private void addNewArtifactRecursive(ArtifactDto dto, Artifact parent) {
