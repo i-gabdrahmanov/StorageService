@@ -24,4 +24,7 @@ public abstract class Document extends AbstractEntity {
 
     @Column(nullable = false)
     private LocalDateTime createDateTime = LocalDateTime.now();
+
+    @ManyToOne
+    private Artifact artifact;
 }

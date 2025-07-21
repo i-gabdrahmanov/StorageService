@@ -1,6 +1,7 @@
 package com.storage.storageservice.controller;
 
 import com.storage.storageservice.dto.InsuranceDto;
+import com.storage.storageservice.dto.LinkToArtifactRequest;
 import com.storage.storageservice.service.InsuranceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,5 +18,10 @@ public class InsuranceController {
     public ResponseEntity<Void> addNewInsurance(@RequestBody InsuranceDto dto) {
         insuranceService.newInsurance(dto);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("linkToArtifact")
+    public void linkToArtifact(@RequestBody LinkToArtifactRequest request) {
+        insuranceService.linkToArtifact(request);
     }
 }

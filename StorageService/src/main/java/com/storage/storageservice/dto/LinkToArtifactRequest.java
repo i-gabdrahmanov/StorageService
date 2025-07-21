@@ -5,13 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @AllArgsConstructor
 @Builder
 @NoArgsConstructor
-public class EmployeeDto {
+public class LinkToArtifactRequest {
 
-    private String id;
-    private String name;
-    private String surname;
+    private UUID documentId;
+    private UUID artifactId;
 }
