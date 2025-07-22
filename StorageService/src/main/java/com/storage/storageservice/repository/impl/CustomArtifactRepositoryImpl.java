@@ -6,12 +6,14 @@ import com.storage.storageservice.utils.CriteriaFieldResolver;
 import jakarta.persistence.*;
 import jakarta.persistence.criteria.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Repository
 @RequiredArgsConstructor
 public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
@@ -25,6 +27,7 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createQuery(Tuple.class);
         Root<Artifact> root = query.from(Artifact.class);
+        Map<String, Join<?, ?>> joins = new HashMap<>();
 
         // Если поля не указаны, получаем все поля из сущности
         if (fields == null || fields.isEmpty()) {
@@ -34,20 +37,28 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
             Set<String> expandedFields = new HashSet<>();
             for (String field : fields) {
                 if (field.contains(".")) {
+                    String prefix = field.substring(0, field.indexOf("."));
+                    // Создаем join, если еще не создан
+                    if (isRelation(root.getJavaType(), prefix) && !joins.containsKey(prefix)) {
+                        joins.put(prefix, root.join(prefix, JoinType.LEFT));
+                    }
                     expandedFields.add(field);
                     // Добавляем id для связанной сущности, если его нет
-                    String prefix = field.substring(0, field.indexOf("."));
                     expandedFields.add(prefix + ".id");
                 } else {
                     // Проверяем, является ли поле связью
                     if (isRelation(root.getJavaType(), field)) {
                         Join<?, ?> join = root.join(field, JoinType.LEFT);
+                        joins.put(field, join);
                         Set<String> entityFields = getEntityFields(join.getJavaType());
                         if (!entityFields.isEmpty()) {
                             // Всегда добавляем id для связанной сущности
                             expandedFields.add(field + ".id");
-                            entityFields.forEach(entityField -> 
-                                expandedFields.add(field + "." + entityField));
+                            // Если нет уточняющих полей после точки, добавляем все поля
+                            if (!fields.stream().anyMatch(f -> f.startsWith(field + "."))) {
+                                entityFields.forEach(entityField -> 
+                                    expandedFields.add(field + "." + entityField));
+                            }
                         }
                     } else {
                         expandedFields.add(field);
@@ -57,6 +68,9 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
             fields = expandedFields;
         }
 
+        log.info("Expanded fields: {}", fields);
+        log.info("Created joins for: {}", joins.keySet());
+
         List<Selection<?>> selections = fields.stream()
                 .map(field -> CriteriaFieldResolver.resolveSelection(root, field, cb))
                 .filter(Objects::nonNull)
@@ -65,7 +79,20 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         query.multiselect(selections)
                 .where(cb.equal(root.get("id"), id));
 
-        return em.createQuery(query).getResultList();
+        TypedQuery<Tuple> typedQuery = em.createQuery(query);
+        log.info("Generated SQL: {}", typedQuery.unwrap(org.hibernate.query.Query.class).getQueryString());
+
+        List<Tuple> results = typedQuery.getResultList();
+        log.info("Query results size: {}", results.size());
+        if (!results.isEmpty()) {
+            Tuple firstResult = results.get(0);
+            log.info("Available tuple elements: {}", 
+                firstResult.getElements().stream()
+                    .map(TupleElement::getAlias)
+                    .collect(Collectors.joining(", ")));
+        }
+
+        return results;
     }
 
     private Set<String> getAllFieldsFromEntity(Root<Artifact> root) {
