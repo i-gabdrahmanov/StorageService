@@ -15,31 +15,6 @@ import jakarta.persistence.TupleElement;
 public class DynamicDtoMapperImpl implements DynamicDtoMapper {
     private static final Map<Class<?>, Map<String, Field>> FIELD_CACHE = new ConcurrentHashMap<>();
 
-    public <T> T mapToDto(jakarta.persistence.Tuple tuple, Set<String> fields, Class<T> dtoClass) {
-        try {
-            T dto = dtoClass.getDeclaredConstructor().newInstance();
-            Map<String, Field> dtoFields = getCachedFields(dtoClass);
-
-            // Если fields пуст или null, используем все поля из DTO
-            if (fields == null || fields.isEmpty()) {
-                fields = dtoFields.keySet();
-            }
-
-            for (String fieldPath : fields) {
-                try {
-                    Object value = tuple.get(fieldPath);
-                    if (value != null) {
-                        setNestedField(dto, fieldPath, value, dtoFields);
-                    }
-                } catch (IllegalArgumentException ignored) {
-                    // Поле не найдено в Tuple
-                }
-            }
-            return dto;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to map to DTO", e);
-        }
-    }
 
     public <T> T mapToDto(List<Tuple> tuples, Set<String> fields, Class<T> dtoClass) {
         if (tuples == null || tuples.isEmpty()) return null;
@@ -54,82 +29,39 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
                 fieldGroups.computeIfAbsent(prefix, k -> new HashSet<>()).add(field);
             }
 
-            // Обрабатываем каждую группу полей
-            for (Map.Entry<String, Set<String>> group : fieldGroups.entrySet()) {
-                String prefix = group.getKey();
-                Field field = dtoFields.get(prefix);
-                if (field == null) continue;
+            // Проверяем каждую группу полей
+            for (Map.Entry<String, Set<String>> entry : fieldGroups.entrySet()) {
+                String prefix = entry.getKey();
+                Set<String> groupFields = entry.getValue();
 
-                field.setAccessible(true);
-                Class<?> fieldType = field.getType();
+                // Если это documents и нет уточняющих полей, получаем все поля из DocumentDto
+                if ("documents".equals(prefix) && groupFields.size() == 1 && groupFields.contains("documents")) {
+                    groupFields = getAllFieldsWithPrefix("documents", DocumentDto.class);
+                }
 
-                if (List.class.isAssignableFrom(fieldType)) {
-                    // Если это список, получаем тип элементов из generic типа поля
-                    Class<?> elementType = getListElementType(fieldType);
-                    System.out.println("Processing list field: " + prefix + " with element type: " + elementType);
-                    
-                    // Проверяем, есть ли вложенные поля
-                    boolean hasNestedFields = group.getValue().stream()
-                            .anyMatch(f -> f.contains(".") && f.startsWith(prefix + "."));
-                    
-                    List<?> items;
-                    if (hasNestedFields) {
-                        items = buildObjectsFromTuples(tuples, elementType, prefix);
-                    } else {
-                        items = buildObjectsFromTuplesWithAllFields(tuples, elementType, prefix);
-                    }
-                    
-                    System.out.println("Built items: " + items);
-                    if (!items.isEmpty()) {
-                        System.out.println("First item type: " + items.get(0).getClass());
-                    }
-                    
-                    field.set(dto, items);
+                // Обрабатываем поля в зависимости от их типа
+                if (groupFields.stream().anyMatch(f -> f.contains("."))) {
+                    // Обработка вложенных полей
+                    processNestedFields(dto, tuples, groupFields, dtoFields);
                 } else {
-                    // Для обычных полей
-                    try {
-                        // Проверяем, есть ли вложенные поля
-                        Set<String> groupFields = group.getValue();
-                        if (groupFields.size() == 1 && groupFields.contains(prefix)) {
-                            // Простое поле без вложенности
-                            Object value = tuples.get(0).get(prefix);
+                    // Обработка простых полей
+                    Tuple firstTuple = tuples.get(0);
+                    for (String field : groupFields) {
+                        try {
+                            Object value = firstTuple.get(field);
                             if (value != null) {
-                                field.set(dto, convertValue(value, fieldType));
+                                setField(dto, field, value, dtoFields);
                             }
-                        } else {
-                            // Вложенный объект (например, employee с полями)
-                            Object nestedDto = fieldType.getDeclaredConstructor().newInstance();
-                            boolean hasAnyValue = false;
-                            
-                            for (String fullPath : groupFields) {
-                                if (fullPath.startsWith(prefix + ".")) {
-                                    try {
-                                        Object value = tuples.get(0).get(fullPath);
-                                        if (value != null) {
-                                            String fieldName = fullPath.substring(prefix.length() + 1);
-                                            Field nestedField = fieldType.getDeclaredField(fieldName);
-                                            nestedField.setAccessible(true);
-                                            nestedField.set(nestedDto, convertValue(value, nestedField.getType()));
-                                            hasAnyValue = true;
-                                        }
-                                    } catch (IllegalArgumentException ignored) {
-                                        // Поле не найдено в Tuple
-                                    }
-                                }
-                            }
-                            
-                            if (hasAnyValue) {
-                                field.set(dto, nestedDto);
-                            }
+                        } catch (IllegalArgumentException ignored) {
+                            // Поле не найдено в Tuple
                         }
-                    } catch (IllegalArgumentException ignored) {
-                        // Поле не найдено в Tuple
                     }
                 }
             }
+
             return dto;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to map to DTO: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to map to DTO", e);
         }
     }
 
@@ -372,6 +304,173 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
     private Set<String> getAllFields(Class<?> type) {
         Set<String> fields = new HashSet<>();
         for (Field field : type.getDeclaredFields()) {
+            fields.add(field.getName());
+        }
+        return fields;
+    }
+
+    private Set<String> getAllFieldsWithPrefix(String prefix, Class<?> dtoClass) {
+        Set<String> fields = new HashSet<>();
+        for (Field field : dtoClass.getDeclaredFields()) {
+            fields.add(prefix + "." + field.getName());
+        }
+        return fields;
+    }
+
+    private void setField(Object dto, String fieldName, Object value, Map<String, Field> dtoFields) {
+        try {
+            Field field = dtoFields.get(fieldName);
+            if (field != null) {
+                field.setAccessible(true);
+                field.set(dto, convertValue(value, field.getType()));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set field: " + fieldName, e);
+        }
+    }
+
+    private void processNestedFields(Object dto, List<Tuple> tuples, Set<String> fields, Map<String, Field> dtoFields) {
+        // Группируем поля по первому уровню вложенности
+        Map<String, Set<String>> nestedGroups = new HashMap<>();
+        for (String field : fields) {
+            String[] parts = field.split("\\.", 2);
+            if (parts.length > 1) {
+                nestedGroups.computeIfAbsent(parts[0], k -> new HashSet<>()).add(parts[1]);
+            } else {
+                nestedGroups.computeIfAbsent(parts[0], k -> new HashSet<>());
+            }
+        }
+
+        // Обрабатываем каждую группу вложенных полей
+        for (Map.Entry<String, Set<String>> entry : nestedGroups.entrySet()) {
+            String fieldName = entry.getKey();
+            Set<String> nestedFields = entry.getValue();
+            
+            Field field = dtoFields.get(fieldName);
+            if (field == null) continue;
+            
+            field.setAccessible(true);
+            Class<?> fieldType = field.getType();
+
+            try {
+                if (Collection.class.isAssignableFrom(fieldType)) {
+                    // Обработка коллекций
+                    processCollectionField(dto, tuples, fieldName, nestedFields, field);
+                } else {
+                    // Обработка одиночного объекта
+                    processSingleObject(dto, tuples.get(0), fieldName, nestedFields, field);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to process nested field: " + fieldName, e);
+            }
+        }
+    }
+
+    private void processCollectionField(Object dto, List<Tuple> tuples, String fieldName, Set<String> nestedFields, Field field) throws Exception {
+        Class<?> elementType = getListElementTypeFromField(field);
+        
+        // Если нет уточняющих полей, получаем все поля для типа
+        if (nestedFields.isEmpty()) {
+            nestedFields = getAllFieldsFromClass(elementType);
+        }
+        
+        // Создаем список объектов
+        List<Object> items = new ArrayList<>();
+        Map<Object, Object> processedItems = new HashMap<>();
+
+        for (Tuple tuple : tuples) {
+            try {
+                // Получаем идентификатор для группировки (например, documents.id)
+                Object itemId = tuple.get(fieldName + ".id");
+                if (itemId == null) continue;
+
+                // Если объект с таким id уже обработан, пропускаем
+                if (processedItems.containsKey(itemId)) continue;
+
+                Object item = elementType.getDeclaredConstructor().newInstance();
+                boolean hasValue = false;
+
+                // Устанавливаем значения полей
+                for (String nestedField : nestedFields) {
+                    try {
+                        String fullPath = fieldName + "." + nestedField;
+                        // Проверяем, есть ли такой алиас в результате
+                        if (hasAlias(tuple, fullPath)) {
+                            Object value = tuple.get(fullPath);
+                            if (value != null) {
+                                Field itemField = elementType.getDeclaredField(nestedField);
+                                itemField.setAccessible(true);
+                                itemField.set(item, convertValue(value, itemField.getType()));
+                                hasValue = true;
+                            }
+                        }
+                    } catch (Exception ignored) {
+                        // Игнорируем ошибки для отдельных полей
+                    }
+                }
+
+                if (hasValue) {
+                    items.add(item);
+                    processedItems.put(itemId, item);
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Игнорируем записи без id
+            }
+        }
+
+        if (!items.isEmpty()) {
+            field.set(dto, items);
+        }
+    }
+
+    private boolean hasAlias(Tuple tuple, String alias) {
+        try {
+            // Проверяем наличие алиаса в результате
+            tuple.get(alias);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private void processSingleObject(Object dto, Tuple tuple, String fieldName, Set<String> nestedFields, Field field) throws Exception {
+        Class<?> fieldType = field.getType();
+        
+        // Если нет уточняющих полей, получаем все поля для типа
+        if (nestedFields.isEmpty()) {
+            nestedFields = getAllFieldsFromClass(fieldType);
+        }
+
+        Object nestedDto = fieldType.getDeclaredConstructor().newInstance();
+        boolean hasValue = false;
+
+        // Устанавливаем значения полей
+        for (String nestedField : nestedFields) {
+            try {
+                String fullPath = fieldName + "." + nestedField;
+                // Проверяем, есть ли такой алиас в результате
+                if (hasAlias(tuple, fullPath)) {
+                    Object value = tuple.get(fullPath);
+                    if (value != null) {
+                        Field nestedObjField = fieldType.getDeclaredField(nestedField);
+                        nestedObjField.setAccessible(true);
+                        nestedObjField.set(nestedDto, convertValue(value, nestedObjField.getType()));
+                        hasValue = true;
+                    }
+                }
+            } catch (Exception ignored) {
+                // Игнорируем ошибки для отдельных полей
+            }
+        }
+
+        if (hasValue) {
+            field.set(dto, nestedDto);
+        }
+    }
+
+    private Set<String> getAllFieldsFromClass(Class<?> clazz) {
+        Set<String> fields = new HashSet<>();
+        for (Field field : clazz.getDeclaredFields()) {
             fields.add(field.getName());
         }
         return fields;
