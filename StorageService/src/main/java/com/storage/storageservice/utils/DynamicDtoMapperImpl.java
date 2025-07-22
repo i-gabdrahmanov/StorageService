@@ -11,6 +11,14 @@ import java.lang.reflect.ParameterizedType;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Timestamp;
+import java.sql.Time;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.nio.ByteBuffer;
 
 @Slf4j
 @Service
@@ -364,9 +372,138 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
     private Object convertValue(Object value, Class<?> targetType) {
         if (value == null) return null;
         if (targetType.isInstance(value)) return value;
-        
-        // Добавьте здесь дополнительные преобразования типов, если необходимо
-        
-        return value;
+
+        try {
+            // Числовые преобразования
+            if (Number.class.isAssignableFrom(value.getClass())) {
+                Number numValue = (Number) value;
+                
+                if (targetType == Integer.class || targetType == int.class) {
+                    return numValue.intValue();
+                }
+                if (targetType == Long.class || targetType == long.class) {
+                    return numValue.longValue();
+                }
+                if (targetType == Double.class || targetType == double.class) {
+                    return numValue.doubleValue();
+                }
+                if (targetType == Float.class || targetType == float.class) {
+                    return numValue.floatValue();
+                }
+                if (targetType == Short.class || targetType == short.class) {
+                    return numValue.shortValue();
+                }
+                if (targetType == Byte.class || targetType == byte.class) {
+                    return numValue.byteValue();
+                }
+                if (targetType == BigDecimal.class) {
+                    if (value instanceof BigDecimal) {
+                        return value;
+                    }
+                    if (value instanceof BigInteger) {
+                        return new BigDecimal((BigInteger) value);
+                    }
+                    if (value instanceof Double || value instanceof Float) {
+                        return BigDecimal.valueOf(numValue.doubleValue());
+                    }
+                    return new BigDecimal(numValue.toString());
+                }
+                if (targetType == BigInteger.class) {
+                    if (value instanceof BigInteger) {
+                        return value;
+                    }
+                    if (value instanceof BigDecimal) {
+                        return ((BigDecimal) value).toBigInteger();
+                    }
+                    return BigInteger.valueOf(numValue.longValue());
+                }
+            }
+
+            // Строковые преобразования
+            if (targetType == String.class) {
+                return value.toString();
+            }
+            if (value instanceof String) {
+                String strValue = (String) value;
+                if (targetType == BigDecimal.class) {
+                    return new BigDecimal(strValue);
+                }
+                if (targetType == BigInteger.class) {
+                    return new BigInteger(strValue);
+                }
+                if (targetType == Integer.class || targetType == int.class) {
+                    return Integer.parseInt(strValue);
+                }
+                if (targetType == Long.class || targetType == long.class) {
+                    return Long.parseLong(strValue);
+                }
+                if (targetType == Double.class || targetType == double.class) {
+                    return Double.parseDouble(strValue);
+                }
+                if (targetType == Float.class || targetType == float.class) {
+                    return Float.parseFloat(strValue);
+                }
+                if (targetType == Boolean.class || targetType == boolean.class) {
+                    return Boolean.parseBoolean(strValue);
+                }
+            }
+
+            // Преобразования даты/времени
+            if (targetType == LocalDateTime.class) {
+                if (value instanceof Timestamp) {
+                    return ((Timestamp) value).toLocalDateTime();
+                }
+                if (value instanceof java.sql.Date) {
+                    return ((java.sql.Date) value).toLocalDate().atStartOfDay();
+                }
+                if (value instanceof String) {
+                    return LocalDateTime.parse((String) value);
+                }
+            }
+            if (targetType == LocalDate.class) {
+                if (value instanceof java.sql.Date) {
+                    return ((java.sql.Date) value).toLocalDate();
+                }
+                if (value instanceof Timestamp) {
+                    return ((Timestamp) value).toLocalDateTime().toLocalDate();
+                }
+                if (value instanceof String) {
+                    return LocalDate.parse((String) value);
+                }
+            }
+            if (targetType == LocalTime.class) {
+                if (value instanceof Time) {
+                    return ((Time) value).toLocalTime();
+                }
+                if (value instanceof Timestamp) {
+                    return ((Timestamp) value).toLocalDateTime().toLocalTime();
+                }
+                if (value instanceof String) {
+                    return LocalTime.parse((String) value);
+                }
+            }
+
+            // UUID преобразования
+            if (targetType == UUID.class) {
+                if (value instanceof String) {
+                    return UUID.fromString((String) value);
+                }
+                if (value instanceof byte[]) {
+                    ByteBuffer bb = ByteBuffer.wrap((byte[]) value);
+                    return new UUID(bb.getLong(), bb.getLong());
+                }
+            }
+
+            // Enum преобразования
+            if (targetType.isEnum() && value instanceof String) {
+                return Enum.valueOf((Class<? extends Enum>) targetType, (String) value);
+            }
+
+            log.warn("Unsupported conversion from {} to {}", value.getClass(), targetType);
+            return value;
+        } catch (Exception e) {
+            log.error("Failed to convert value {} to type {}", value, targetType, e);
+            return value;
+        }
     }
 }
