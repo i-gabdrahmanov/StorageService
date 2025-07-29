@@ -9,6 +9,7 @@ import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,16 +31,26 @@ public class Artifact extends AbstractEntity {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> payload;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
     private Artifact parent;
 
     @OneToMany(mappedBy = "parent")
     private List<Artifact> children;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     private Employee employee;
 
-    @OneToMany(mappedBy = "artifact", cascade = CascadeType.ALL)
-    private List<Document> documents;
+    @OneToMany(mappedBy = "artifact", fetch = FetchType.LAZY)
+    private List<Document> documents = new ArrayList<>();
+
+    public void addDocument(Document document) {
+        documents.add(document);
+        document.setArtifact(this);
+    }
+
+    public void removeDocument(Document document) {
+        documents.remove(document);
+        document.setArtifact(null);
+    }
 }

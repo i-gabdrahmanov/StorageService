@@ -24,4 +24,5 @@ public class DocumentDto {
     // Contract fields
     private String contractText;
     // Можно добавить другие специфичные поля для других наследников
+    private SignerDto signer;
 } 

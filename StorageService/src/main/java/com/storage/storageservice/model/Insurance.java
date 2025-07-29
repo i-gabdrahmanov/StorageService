@@ -1,6 +1,7 @@
 package com.storage.storageservice.model;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,10 +11,10 @@ import lombok.Setter;
 @Entity
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class Insurance extends Document {
-
+    
     @Column(nullable = false)
     private String vehicleType;
 }

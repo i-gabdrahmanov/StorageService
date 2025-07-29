@@ -25,6 +25,11 @@ public abstract class Document extends AbstractEntity {
     @Column(nullable = false)
     private LocalDateTime createDateTime = LocalDateTime.now();
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "artifact_id")
     private Artifact artifact;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "signer_id")
+    private Signer signer;
 }

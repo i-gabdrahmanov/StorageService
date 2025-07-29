@@ -116,20 +116,6 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
                    .addPath(path, index + 1);
         }
 
-        Set<String> getChildFields() {
-            Set<String> fields = new HashSet<>();
-            for (Map.Entry<String, FieldNode> entry : children.entrySet()) {
-                if (entry.getValue().isLeaf) {
-                    fields.add(entry.getKey());
-                } else {
-                    for (String childField : entry.getValue().getAllNestedFields()) {
-                        fields.add(entry.getKey() + "." + childField);
-                    }
-                }
-            }
-            return fields;
-        }
-
         Set<String> getAllNestedFields() {
             Set<String> fields = new HashSet<>();
             for (Map.Entry<String, FieldNode> entry : children.entrySet()) {
@@ -190,66 +176,54 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
         
         log.info("Processing collection field: {} of type: {}", fieldName, elementType);
         
-        // Если нет уточняющих полей, получаем все поля для типа
-        if (nestedFields.isEmpty()) {
-            nestedFields = getAllFieldsFromClass(elementType);
-            log.info("Using all fields for collection elements: {}", nestedFields);
-        }
-        
         // Создаем список объектов
         List<Object> items = new ArrayList<>();
         Map<Object, Object> processedItems = new HashMap<>();
 
+        // Получаем все доступные алиасы для этой коллекции
+        Set<String> availableAliases = tuples.get(0).getElements().stream()
+            .map(TupleElement::getAlias)
+            .filter(alias -> alias.startsWith(fieldName + "."))
+            .collect(Collectors.toSet());
+
+        log.info("Available aliases for {}: {}", fieldName, availableAliases);
+
+        // Находим уникальные идентификаторы элементов коллекции
+        Set<String> uniqueIdentifiers = new HashSet<>();
         for (Tuple tuple : tuples) {
-            try {
-                // Получаем идентификатор для группировки (например, documents.id)
-                Object itemId = tuple.get(fieldName + ".id");
-                log.info("Processing item with ID: {}", itemId);
-                
-                if (itemId == null) {
-                    log.debug("Skipping item with null ID");
-                    continue;
+            for (String alias : availableAliases) {
+                Object value = tuple.get(alias);
+                if (value != null) {
+                    uniqueIdentifiers.add(alias.substring(0, alias.lastIndexOf(".")));
                 }
+            }
+        }
 
-                // Если объект с таким id уже обработан, пропускаем
-                if (processedItems.containsKey(itemId)) {
-                    log.debug("Skipping already processed item with ID: {}", itemId);
-                    continue;
-                }
+        log.info("Found unique identifiers: {}", uniqueIdentifiers);
 
-                Object item = elementType.getDeclaredConstructor().newInstance();
-                boolean hasValue = false;
+        // Обрабатываем каждый уникальный элемент коллекции
+        for (String identifier : uniqueIdentifiers) {
+            Object item = elementType.getDeclaredConstructor().newInstance();
+            boolean hasValue = false;
 
-                // Устанавливаем значения полей
-                for (String nestedField : nestedFields) {
+            // Устанавливаем значения полей
+            for (String alias : availableAliases) {
+                if (alias.startsWith(identifier + ".")) {
+                    String fieldPart = alias.substring(identifier.length() + 1);
                     try {
-                        String fullPath = fieldName + "." + nestedField;
-                        if (hasAlias(tuple, fullPath)) {
-                            Object value = tuple.get(fullPath);
-                            log.debug("Setting nested field: {} = {}", fullPath, value);
-                            if (value != null) {
-                                Field itemField = elementType.getDeclaredField(nestedField);
-                                itemField.setAccessible(true);
-                                itemField.set(item, convertValue(value, itemField.getType()));
-                                hasValue = true;
-                            }
-                        } else {
-                            log.debug("Alias not found: {}", fullPath);
+                        Object value = tuples.get(0).get(alias);
+                        if (value != null) {
+                            setNestedFieldRecursive(item, fieldPart, convertValue(value, getLeafFieldType(elementType, fieldPart)));
+                            hasValue = true;
                         }
                     } catch (Exception e) {
-                        log.warn("Failed to set nested field: {}", nestedField, e);
+                        log.warn("Failed to set field {} for item in collection {}", fieldPart, fieldName, e);
                     }
                 }
+            }
 
-                if (hasValue) {
-                    items.add(item);
-                    processedItems.put(itemId, item);
-                    log.info("Added item with ID: {}", itemId);
-                } else {
-                    log.debug("Skipping item with no values set");
-                }
-            } catch (IllegalArgumentException e) {
-                log.warn("Failed to process tuple for collection field: {}", fieldName, e);
+            if (hasValue) {
+                items.add(item);
             }
         }
 
@@ -257,7 +231,7 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
             log.info("Setting collection field: {} with {} items", fieldName, items.size());
             field.set(dto, items);
         } else {
-            log.warn("No items found for collection field: {}", fieldName);
+            log.info("No items found for collection field: {}", fieldName);
         }
     }
 
@@ -505,5 +479,54 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
             log.error("Failed to convert value {} to type {}", value, targetType, e);
             return value;
         }
+    }
+
+    private void setNestedField(Object obj, String fieldPath, Object value) throws Exception {
+        String[] parts = fieldPath.split("\\.");
+        Object currentObj = obj;
+        Class<?> currentClass = obj.getClass();
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            Field field = currentClass.getDeclaredField(parts[i]);
+            field.setAccessible(true);
+            Object nestedObj = field.get(currentObj);
+            if (nestedObj == null) {
+                nestedObj = field.getType().getDeclaredConstructor().newInstance();
+                field.set(currentObj, nestedObj);
+            }
+            currentObj = nestedObj;
+            currentClass = field.getType();
+        }
+
+        Field leafField = currentClass.getDeclaredField(parts[parts.length - 1]);
+        leafField.setAccessible(true);
+        leafField.set(currentObj, value);
+    }
+
+    private void setNestedFieldRecursive(Object obj, String fieldPath, Object value) throws Exception {
+        String[] parts = fieldPath.split("\\.", 2);
+        Field field = obj.getClass().getDeclaredField(parts[0]);
+        field.setAccessible(true);
+
+        if (parts.length == 1) {
+            field.set(obj, value);
+        } else {
+            Object nestedObj = field.get(obj);
+            if (nestedObj == null) {
+                nestedObj = field.getType().getDeclaredConstructor().newInstance();
+                field.set(obj, nestedObj);
+            }
+            setNestedFieldRecursive(nestedObj, parts[1], value);
+        }
+    }
+
+    private Class<?> getLeafFieldType(Class<?> rootClass, String fieldPath) throws Exception {
+        String[] parts = fieldPath.split("\\.");
+        Class<?> currentClass = rootClass;
+        for (String part : parts) {
+            Field field = currentClass.getDeclaredField(part);
+            currentClass = field.getType();
+        }
+        return currentClass;
     }
 }

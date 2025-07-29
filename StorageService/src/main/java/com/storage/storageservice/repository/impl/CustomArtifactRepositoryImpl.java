@@ -12,6 +12,10 @@ import org.springframework.stereotype.Repository;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.storage.storageservice.dto.ArtifactDto;
+import com.storage.storageservice.dto.EmployeeDto;
+import com.storage.storageservice.dto.DocumentDto;
+import com.storage.storageservice.dto.SignerDto;
 
 @Slf4j
 @Repository
@@ -29,44 +33,8 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         Root<Artifact> root = query.from(Artifact.class);
         Map<String, Join<?, ?>> joins = new HashMap<>();
 
-        // Если поля не указаны, получаем все поля из сущности
-        if (fields == null || fields.isEmpty()) {
-            fields = getAllFieldsFromEntity(root);
-        } else {
-            // Проверяем каждое поле на необходимость получения всех полей
-            Set<String> expandedFields = new HashSet<>();
-            for (String field : fields) {
-                if (field.contains(".")) {
-                    String prefix = field.substring(0, field.indexOf("."));
-                    // Создаем join, если еще не создан
-                    if (isRelation(root.getJavaType(), prefix) && !joins.containsKey(prefix)) {
-                        joins.put(prefix, root.join(prefix, JoinType.LEFT));
-                    }
-                    expandedFields.add(field);
-                    // Добавляем id для связанной сущности, если его нет
-                    expandedFields.add(prefix + ".id");
-                } else {
-                    // Проверяем, является ли поле связью
-                    if (isRelation(root.getJavaType(), field)) {
-                        Join<?, ?> join = root.join(field, JoinType.LEFT);
-                        joins.put(field, join);
-                        Set<String> entityFields = getEntityFields(join.getJavaType());
-                        if (!entityFields.isEmpty()) {
-                            // Всегда добавляем id для связанной сущности
-                            expandedFields.add(field + ".id");
-                            // Если нет уточняющих полей после точки, добавляем все поля
-                            if (!fields.stream().anyMatch(f -> f.startsWith(field + "."))) {
-                                entityFields.forEach(entityField -> 
-                                    expandedFields.add(field + "." + entityField));
-                            }
-                        }
-                    } else {
-                        expandedFields.add(field);
-                    }
-                }
-            }
-            fields = expandedFields;
-        }
+        // Универсальное рекурсивное разворачивание полей
+        fields = expandFieldsRecursive(fields, ArtifactDto.class);
 
         log.info("Expanded fields: {}", fields);
         log.info("Created joins for: {}", joins.keySet());
@@ -93,6 +61,88 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         }
 
         return results;
+    }
+
+    // --- Универсальное рекурсивное разворачивание полей ---
+    private Set<String> expandFieldsRecursive(Set<String> fields, Class<?> rootDtoClass) {
+        Set<String> result = new HashSet<>();
+        Map<String, Set<String>> prefixToSpecific = new HashMap<>();
+        for (String field : fields) {
+            int idx = field.lastIndexOf('.');
+            if (idx > 0) {
+                String prefix = field.substring(0, idx);
+                prefixToSpecific.computeIfAbsent(prefix, k -> new HashSet<>()).add(field);
+            }
+        }
+        for (String field : fields) {
+            if (!field.contains(".")) {
+                expandFieldRecursive(field, rootDtoClass, prefixToSpecific, fields, result, "");
+            } else if (!prefixToSpecific.containsKey(field)) {
+                result.add(field);
+            }
+        }
+        return result;
+    }
+
+    private void expandFieldRecursive(String field, Class<?> dtoClass, Map<String, Set<String>> prefixToSpecific, Set<String> allFields, Set<String> result, String prefix) {
+        String fullPrefix = prefix.isEmpty() ? field : prefix + "." + field;
+        Set<String> specifics = prefixToSpecific.getOrDefault(fullPrefix, Collections.emptySet());
+        Field dtoField = getFieldSafe(dtoClass, field);
+        if (dtoField == null) return;
+        Class<?> fieldType = dtoField.getType();
+        if (Collection.class.isAssignableFrom(fieldType)) {
+            // Получить тип элемента коллекции
+            Class<?> elementType = getCollectionElementType(dtoField);
+            if (elementType != null && isDto(elementType)) {
+                if (specifics.isEmpty() && !allFields.contains(fullPrefix)) {
+                    for (Field subField : elementType.getDeclaredFields()) {
+                        result.add(fullPrefix + "." + subField.getName());
+                    }
+                } else {
+                    for (String specific : specifics) {
+                        result.add(specific);
+                    }
+                }
+            }
+        } else if (isDto(fieldType)) {
+            if (specifics.isEmpty() && !allFields.contains(fullPrefix)) {
+                for (Field subField : fieldType.getDeclaredFields()) {
+                    result.add(fullPrefix + "." + subField.getName());
+                }
+            } else {
+                for (String specific : specifics) {
+                    result.add(specific);
+                }
+            }
+        } else {
+            result.add(fullPrefix);
+        }
+    }
+
+    private boolean isDto(Class<?> clazz) {
+        return clazz.getSimpleName().endsWith("Dto");
+    }
+
+    private Field getFieldSafe(Class<?> clazz, String name) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            try {
+                return current.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {}
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    private Class<?> getCollectionElementType(Field field) {
+        if (field.getGenericType() instanceof java.lang.reflect.ParameterizedType) {
+            java.lang.reflect.ParameterizedType type = (java.lang.reflect.ParameterizedType) field.getGenericType();
+            java.lang.reflect.Type[] typeArguments = type.getActualTypeArguments();
+            if (typeArguments.length > 0 && typeArguments[0] instanceof Class) {
+                return (Class<?>) typeArguments[0];
+            }
+        }
+        return null;
     }
 
     private Set<String> getAllFieldsFromEntity(Root<Artifact> root) {
