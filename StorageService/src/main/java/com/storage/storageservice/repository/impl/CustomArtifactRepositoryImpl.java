@@ -33,8 +33,12 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         Root<Artifact> root = query.from(Artifact.class);
         Map<String, Join<?, ?>> joins = new HashMap<>();
 
-        // Универсальное рекурсивное разворачивание полей
-        fields = expandFieldsRecursive(fields, ArtifactDto.class);
+        // Если requiredResponseFields пустой — разворачиваем на все поля ArtifactDto
+        if (fields == null || fields.isEmpty()) {
+            fields = getAllFieldsFromDto(ArtifactDto.class, "");
+        } else {
+            fields = expandFieldsRecursive(fields, ArtifactDto.class);
+        }
 
         log.info("Expanded fields: {}", fields);
         log.info("Created joins for: {}", joins.keySet());
@@ -76,7 +80,8 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         }
         for (String field : fields) {
             if (!field.contains(".")) {
-                expandFieldRecursive(field, rootDtoClass, prefixToSpecific, fields, result, "");
+                // Если поле без уточняющих — разворачиваем на все поля соответствующего DTO
+                getAllFieldsFromDtoRecursive(rootDtoClass, field, result, prefixToSpecific, fields);
             } else if (!prefixToSpecific.containsKey(field)) {
                 result.add(field);
             }
@@ -84,39 +89,49 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         return result;
     }
 
-    private void expandFieldRecursive(String field, Class<?> dtoClass, Map<String, Set<String>> prefixToSpecific, Set<String> allFields, Set<String> result, String prefix) {
-        String fullPrefix = prefix.isEmpty() ? field : prefix + "." + field;
-        Set<String> specifics = prefixToSpecific.getOrDefault(fullPrefix, Collections.emptySet());
+    // Рекурсивно добавляет все поля для указанного поля (или коллекции)
+    private void getAllFieldsFromDtoRecursive(Class<?> dtoClass, String field, Set<String> result, Map<String, Set<String>> prefixToSpecific, Set<String> allFields) {
         Field dtoField = getFieldSafe(dtoClass, field);
         if (dtoField == null) return;
         Class<?> fieldType = dtoField.getType();
         if (Collection.class.isAssignableFrom(fieldType)) {
-            // Получить тип элемента коллекции
             Class<?> elementType = getCollectionElementType(dtoField);
             if (elementType != null && isDto(elementType)) {
-                if (specifics.isEmpty() && !allFields.contains(fullPrefix)) {
-                    for (Field subField : elementType.getDeclaredFields()) {
-                        result.add(fullPrefix + "." + subField.getName());
-                    }
-                } else {
-                    for (String specific : specifics) {
-                        result.add(specific);
-                    }
+                for (Field subField : elementType.getDeclaredFields()) {
+                    result.add(field + "." + subField.getName());
                 }
             }
         } else if (isDto(fieldType)) {
-            if (specifics.isEmpty() && !allFields.contains(fullPrefix)) {
-                for (Field subField : fieldType.getDeclaredFields()) {
-                    result.add(fullPrefix + "." + subField.getName());
-                }
-            } else {
-                for (String specific : specifics) {
-                    result.add(specific);
-                }
+            for (Field subField : fieldType.getDeclaredFields()) {
+                result.add(field + "." + subField.getName());
             }
         } else {
-            result.add(fullPrefix);
+            result.add(field);
         }
+    }
+
+    // Получить все поля для корневого DTO (для полного разворачивания)
+    private Set<String> getAllFieldsFromDto(Class<?> dtoClass, String prefix) {
+        Set<String> result = new HashSet<>();
+        for (Field field : dtoClass.getDeclaredFields()) {
+            Class<?> fieldType = field.getType();
+            String fullName = prefix.isEmpty() ? field.getName() : prefix + "." + field.getName();
+            if (Collection.class.isAssignableFrom(fieldType)) {
+                Class<?> elementType = getCollectionElementType(field);
+                if (elementType != null && isDto(elementType)) {
+                    for (Field subField : elementType.getDeclaredFields()) {
+                        result.add(fullName + "." + subField.getName());
+                    }
+                }
+            } else if (isDto(fieldType)) {
+                for (Field subField : fieldType.getDeclaredFields()) {
+                    result.add(fullName + "." + subField.getName());
+                }
+            } else {
+                result.add(fullName);
+            }
+        }
+        return result;
     }
 
     private boolean isDto(Class<?> clazz) {
