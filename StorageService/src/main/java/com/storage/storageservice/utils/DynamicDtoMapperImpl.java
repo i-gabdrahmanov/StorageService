@@ -190,14 +190,7 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
 
         // Находим уникальные идентификаторы элементов коллекции
         Set<String> uniqueIdentifiers = new HashSet<>();
-        for (Tuple tuple : tuples) {
-            for (String alias : availableAliases) {
-                Object value = tuple.get(alias);
-                if (value != null) {
-                    uniqueIdentifiers.add(alias.substring(0, alias.lastIndexOf(".")));
-                }
-            }
-        }
+        uniqueIdentifiers.add(fieldName); // всегда только 'documents'
 
         log.info("Found unique identifiers: {}", uniqueIdentifiers);
 
