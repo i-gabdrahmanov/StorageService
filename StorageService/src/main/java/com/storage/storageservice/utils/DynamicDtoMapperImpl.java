@@ -195,16 +195,16 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
         log.info("Found unique identifiers: {}", uniqueIdentifiers);
 
         // Обрабатываем каждый уникальный элемент коллекции
-        for (String identifier : uniqueIdentifiers) {
+        for (Tuple tuple : tuples) {
             Object item = elementType.getDeclaredConstructor().newInstance();
             boolean hasValue = false;
 
             // Устанавливаем значения полей
             for (String alias : availableAliases) {
-                if (alias.startsWith(identifier + ".")) {
-                    String fieldPart = alias.substring(identifier.length() + 1);
+                if (alias.startsWith(fieldName + ".")) {
+                    String fieldPart = alias.substring(fieldName.length() + 1);
                     try {
-                        Object value = tuples.get(0).get(alias);
+                        Object value = tuple.get(alias);
                         if (value != null) {
                             setNestedFieldRecursive(item, fieldPart, convertValue(value, getLeafFieldType(elementType, fieldPart)));
                             hasValue = true;
@@ -214,7 +214,6 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
                     }
                 }
             }
-
             if (hasValue) {
                 items.add(item);
             }

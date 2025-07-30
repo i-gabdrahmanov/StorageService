@@ -16,6 +16,6 @@ import java.util.List;
 public class SignerDto {
     private String id;
     private String fullName;
-    private boolean isActive;
+    private Boolean isActive;
     private List<DocumentDto> documents;
 } 

@@ -13,9 +13,6 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.stream.Collectors;
 import com.storage.storageservice.dto.ArtifactDto;
-import com.storage.storageservice.dto.EmployeeDto;
-import com.storage.storageservice.dto.DocumentDto;
-import com.storage.storageservice.dto.SignerDto;
 
 @Slf4j
 @Repository
@@ -31,22 +28,9 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createQuery(Tuple.class);
         Root<Artifact> root = query.from(Artifact.class);
-        Map<String, Join<?, ?>> joins = new HashMap<>();
 
-        // Если requiredResponseFields пустой — разворачиваем на все поля ArtifactDto
-        if (fields == null || fields.isEmpty()) {
-            fields = getAllFieldsFromDto(ArtifactDto.class, "");
-        } else {
-            fields = expandFieldsRecursive(fields, ArtifactDto.class);
-        }
-
-        log.info("Expanded fields: {}", fields);
-        log.info("Created joins for: {}", joins.keySet());
-
-        List<Selection<?>> selections = fields.stream()
-                .map(field -> CriteriaFieldResolver.resolveSelection(root, field, cb))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        // Use the enhanced field resolution logic
+        List<Selection<?>> selections = CriteriaFieldResolver.resolveSelections(root, fields, cb);
 
         query.multiselect(selections)
                 .where(cb.equal(root.get("id"), id));
@@ -80,10 +64,44 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         }
         for (String field : fields) {
             if (!field.contains(".")) {
-                // Если поле без уточняющих — разворачиваем на все поля соответствующего DTO
                 getAllFieldsFromDtoRecursive(rootDtoClass, field, result, prefixToSpecific, fields);
-            } else if (!prefixToSpecific.containsKey(field)) {
-                result.add(field);
+            } else {
+                // Проверяем, не является ли поле вложенной связью без уточняющих
+                String[] parts = field.split("\\.");
+                Class<?> currentDto = rootDtoClass;
+                boolean isRelation = false;
+                for (int i = 0; i < parts.length - 1; i++) {
+                    Field f = getFieldSafe(currentDto, parts[i]);
+                    if (f == null) break;
+                    Class<?> t = f.getType();
+                    if (Collection.class.isAssignableFrom(t)) {
+                        t = getCollectionElementType(f);
+                    }
+                    if (isDto(t)) {
+                        currentDto = t;
+                        isRelation = true;
+                    } else {
+                        isRelation = false;
+                        break;
+                    }
+                }
+                if (isRelation && !prefixToSpecific.containsKey(field)) {
+                    // Разворачиваем на все поля соответствующего DTO
+                    Field lastField = getFieldSafe(currentDto, parts[parts.length - 1]);
+                    if (lastField != null) {
+                        Class<?> lastType = lastField.getType();
+                        if (Collection.class.isAssignableFrom(lastType)) {
+                            lastType = getCollectionElementType(lastField);
+                        }
+                        if (isDto(lastType)) {
+                            for (Field subField : lastType.getDeclaredFields()) {
+                                result.add(field + "." + subField.getName());
+                            }
+                        }
+                    }
+                } else if (!prefixToSpecific.containsKey(field)) {
+                    result.add(field);
+                }
             }
         }
         return result;
@@ -97,6 +115,8 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
         if (Collection.class.isAssignableFrom(fieldType)) {
             Class<?> elementType = getCollectionElementType(dtoField);
             if (elementType != null && isDto(elementType)) {
+                // Всегда добавляем id для коллекции
+                result.add(field + ".id");
                 for (Field subField : elementType.getDeclaredFields()) {
                     result.add(field + "." + subField.getName());
                 }

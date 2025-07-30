@@ -28,7 +28,7 @@ public class SignerServiceImpl implements SignerService {
     public SignerDto createSigner(SignerDto request) {
         Signer signer = new Signer();
         signer.setFullName(request.getFullName());
-        signer.setActive(request.isActive());
+        signer.setActive(request.getIsActive());
         
         signer = signerRepository.save(signer);
         return mapToDto(signer);
