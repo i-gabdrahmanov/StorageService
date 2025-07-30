@@ -174,13 +174,9 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
     private void processCollectionField(Object dto, List<Tuple> tuples, String fieldName, Set<String> nestedFields, Field field) throws Exception {
         Class<?> elementType = getListElementTypeFromField(field);
         
-        log.info("Processing collection field: {} of type: {}", fieldName, elementType);
+        log.info("Processing collection field: {} of type: {} with {} tuples", fieldName, elementType, tuples.size());
         
-        // Создаем список объектов
-        List<Object> items = new ArrayList<>();
-        Map<Object, Object> processedItems = new HashMap<>();
-
-        // Получаем все доступные алиасы для этой коллекции
+        // Get all available aliases for this collection
         Set<String> availableAliases = tuples.get(0).getElements().stream()
             .map(TupleElement::getAlias)
             .filter(alias -> alias.startsWith(fieldName + "."))
@@ -188,34 +184,127 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
 
         log.info("Available aliases for {}: {}", fieldName, availableAliases);
 
-        // Находим уникальные идентификаторы элементов коллекции
-        Set<String> uniqueIdentifiers = new HashSet<>();
-        uniqueIdentifiers.add(fieldName); // всегда только 'documents'
-
-        log.info("Found unique identifiers: {}", uniqueIdentifiers);
-
-        // Обрабатываем каждый уникальный элемент коллекции
+        // Group tuples by document ID to handle multiple documents correctly
+        Map<Object, Tuple> documentGroups = new LinkedHashMap<>();
+        String idFieldName = fieldName + ".id";
+        
         for (Tuple tuple : tuples) {
+            try {
+                // Try to get the ID field to group documents
+                Object documentId = null;
+                if (hasAlias(tuple, idFieldName)) {
+                    documentId = tuple.get(idFieldName);
+                    log.debug("Found document ID: {} in tuple", documentId);
+                }
+                
+                // If no ID available, create a unique key based on multiple distinguishing fields
+                if (documentId == null) {
+                    // Try to find other distinguishing document fields
+                    List<String> potentialIdFields = List.of(
+                        fieldName + ".name",
+                        fieldName + ".surname", 
+                        fieldName + ".createDateTime",
+                        fieldName + ".type",
+                        fieldName + ".signer.id"
+                    );
+                    
+                    StringBuilder keyBuilder = new StringBuilder("doc_");
+                    boolean foundAnyValue = false;
+                    
+                    // Use a combination of available fields to create a unique key
+                    for (String potentialField : potentialIdFields) {
+                        if (hasAlias(tuple, potentialField)) {
+                            try {
+                                Object value = tuple.get(potentialField);
+                                keyBuilder.append(potentialField.substring(fieldName.length() + 1))
+                                          .append("=").append(value).append(";");
+                                if (value != null) {
+                                    foundAnyValue = true;
+                                }
+                                log.debug("Added distinguishing field {} = {} to composite key", potentialField, value);
+                            } catch (Exception e) {
+                                // Skip this field
+                            }
+                        }
+                    }
+                    
+                    // If still no distinguishing values, fall back to tuple index
+                    if (!foundAnyValue) {
+                        // Last resort: use tuple index
+                        keyBuilder.append("tuple_").append(tuples.indexOf(tuple));
+                        log.debug("No distinguishing fields found, using tuple index as fallback");
+                    }
+                    
+                    documentId = keyBuilder.toString();
+                    log.debug("Generated composite document ID: {}", documentId);
+                }
+                
+                // Only add if we haven't seen this document ID or if it has more complete data
+                if (!documentGroups.containsKey(documentId) || hasMoreCompleteData(tuple, documentGroups.get(documentId), availableAliases)) {
+                    documentGroups.put(documentId, tuple);
+                    log.debug("Added/Updated document with ID: {} from tuple index: {}", documentId, tuples.indexOf(tuple));
+                }
+            } catch (Exception e) {
+                log.warn("Error processing tuple for document grouping", e);
+                // Fallback: use tuple index as key
+                String fallbackId = "tuple_" + tuples.indexOf(tuple);
+                documentGroups.put(fallbackId, tuple);
+                log.debug("Used fallback ID: {}", fallbackId);
+            }
+        }
+
+        log.info("Found {} unique documents in {} tuples", documentGroups.size(), tuples.size());
+
+        // Create list of collection items
+        List<Object> items = new ArrayList<>();
+        
+        // Process each unique document
+        for (Map.Entry<Object, Tuple> entry : documentGroups.entrySet()) {
+            Object documentId = entry.getKey();
+            Tuple tuple = entry.getValue();
+            
+            log.debug("Processing document with ID: {}", documentId);
+            
             Object item = elementType.getDeclaredConstructor().newInstance();
             boolean hasValue = false;
 
-            // Устанавливаем значения полей
+            // Set field values for this document
             for (String alias : availableAliases) {
                 if (alias.startsWith(fieldName + ".")) {
                     String fieldPart = alias.substring(fieldName.length() + 1);
                     try {
                         Object value = tuple.get(alias);
-                        if (value != null) {
-                            setNestedFieldRecursive(item, fieldPart, convertValue(value, getLeafFieldType(elementType, fieldPart)));
-                            hasValue = true;
-                        }
+                        log.debug("Processing field: {} with value: {} (type: {})", 
+                            alias, value, value != null ? value.getClass().getSimpleName() : "null");
+                        
+                        // Set the field even if the value is null - this is important for nested objects
+                        Class<?> leafFieldType = getLeafFieldType(elementType, fieldPart);
+                        log.debug("Target field type for {}: {}", fieldPart, leafFieldType.getSimpleName());
+                        
+                        Object convertedValue = convertValue(value, leafFieldType);
+                        log.debug("Converted value: {} (type: {})", convertedValue, 
+                            convertedValue != null ? convertedValue.getClass().getSimpleName() : "null");
+                        
+                        setNestedFieldRecursive(item, fieldPart, convertedValue);
+                        
+                        // Consider it as having a value even if the value is null - the field exists
+                        hasValue = true;
+                        log.debug("Successfully set field {} = {} for document {}", fieldPart, convertedValue, documentId);
                     } catch (Exception e) {
-                        log.warn("Failed to set field {} for item in collection {}", fieldPart, fieldName, e);
+                        log.error("Failed to set field {} for document {} in collection {}: {}", 
+                            fieldPart, documentId, fieldName, e.getMessage(), e);
                     }
                 }
             }
-            if (hasValue) {
+            
+            // Always include the document if we processed any fields, even if they were null
+            // This ensures documents without signers are still included
+            if (hasValue || !availableAliases.isEmpty()) {
                 items.add(item);
+                log.debug("Added document {} to collection (hasValue: {}, availableAliases: {})", 
+                    documentId, hasValue, availableAliases.size());
+            } else {
+                log.warn("Document {} had no processable fields, skipping", documentId);
             }
         }
 
@@ -225,6 +314,25 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
         } else {
             log.info("No items found for collection field: {}", fieldName);
         }
+    }
+    
+    /**
+     * Check if one tuple has more complete data than another
+     */
+    private boolean hasMoreCompleteData(Tuple newTuple, Tuple existingTuple, Set<String> availableAliases) {
+        int newNonNullCount = 0;
+        int existingNonNullCount = 0;
+        
+        for (String alias : availableAliases) {
+            try {
+                if (newTuple.get(alias) != null) newNonNullCount++;
+                if (existingTuple.get(alias) != null) existingNonNullCount++;
+            } catch (Exception e) {
+                // Ignore aliases that don't exist in tuple
+            }
+        }
+        
+        return newNonNullCount > existingNonNullCount;
     }
 
     private void processSingleObject(Object dto, Tuple tuple, String fieldName, Set<String> nestedFields, Field field) throws Exception {
@@ -338,6 +446,14 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
     private Object convertValue(Object value, Class<?> targetType) {
         if (value == null) return null;
         if (targetType.isInstance(value)) return value;
+
+        // Safeguard: Don't allow entity objects to be set to DTO fields
+        if (value.getClass().getPackageName().contains(".model") && 
+            targetType.getSimpleName().endsWith("Dto")) {
+            log.warn("Attempted to set entity {} to DTO field of type {}. This should not happen.", 
+                value.getClass().getSimpleName(), targetType.getSimpleName());
+            return null;
+        }
 
         try {
             // Числовые преобразования
@@ -497,19 +613,44 @@ public class DynamicDtoMapperImpl implements DynamicDtoMapper {
 
     private void setNestedFieldRecursive(Object obj, String fieldPath, Object value) throws Exception {
         String[] parts = fieldPath.split("\\.", 2);
-        Field field = obj.getClass().getDeclaredField(parts[0]);
+        String fieldName = parts[0];
+        
+        Field field = obj.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
 
         if (parts.length == 1) {
+            // This is the leaf field - set the value directly
             field.set(obj, value);
         } else {
+            // This is a nested field - need to create or get the nested object
             Object nestedObj = field.get(obj);
             if (nestedObj == null) {
-                nestedObj = field.getType().getDeclaredConstructor().newInstance();
-                field.set(obj, nestedObj);
+                // Create a new instance of the nested DTO
+                Class<?> fieldType = field.getType();
+                
+                // Make sure we're creating a DTO, not trying to set an entity
+                if (isDtoClass(fieldType)) {
+                    nestedObj = fieldType.getDeclaredConstructor().newInstance();
+                    field.set(obj, nestedObj);
+                    log.debug("Created new nested DTO object of type: {} for field: {}", 
+                        fieldType.getSimpleName(), fieldName);
+                } else {
+                    log.warn("Attempted to create non-DTO nested object of type: {} for field: {}", 
+                        fieldType.getSimpleName(), fieldName);
+                    return;
+                }
             }
+            
+            // Continue with the remaining path on the nested object
             setNestedFieldRecursive(nestedObj, parts[1], value);
         }
+    }
+    
+    /**
+     * Check if a class is a DTO class
+     */
+    private boolean isDtoClass(Class<?> clazz) {
+        return clazz != null && clazz.getSimpleName().endsWith("Dto");
     }
 
     private Class<?> getLeafFieldType(Class<?> rootClass, String fieldPath) throws Exception {

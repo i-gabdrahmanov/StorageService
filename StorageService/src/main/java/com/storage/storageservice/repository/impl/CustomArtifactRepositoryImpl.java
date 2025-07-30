@@ -25,30 +25,118 @@ public class CustomArtifactRepositoryImpl implements CustomArtifactRepository {
 
     @Override
     public List<Tuple> findProjectedById(UUID id, Set<String> fields) {
+        log.info("Starting query for artifact ID: {} with requested fields: {}", id, fields);
+        
+        // First, let's verify how many documents exist for this artifact
+        try {
+            Long documentCount = em.createQuery(
+                "SELECT COUNT(d) FROM Document d WHERE d.artifact.id = :artifactId", Long.class)
+                .setParameter("artifactId", id)
+                .getSingleResult();
+            log.info("Found {} documents in database for artifact {}", documentCount, id);
+            
+            // Also check how many have signers
+            Long documentsWithSigners = em.createQuery(
+                "SELECT COUNT(d) FROM Document d WHERE d.artifact.id = :artifactId AND d.signer IS NOT NULL", Long.class)
+                .setParameter("artifactId", id)
+                .getSingleResult();
+            log.info("Found {} documents with signers for artifact {}", documentsWithSigners, id);
+            
+        } catch (Exception e) {
+            log.warn("Failed to count documents for verification", e);
+        }
+        
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createQuery(Tuple.class);
         Root<Artifact> root = query.from(Artifact.class);
 
         // Use the enhanced field resolution logic
         List<Selection<?>> selections = CriteriaFieldResolver.resolveSelections(root, fields, cb);
+        
+        log.info("Resolved {} selections from {} requested fields", selections.size(), fields.size());
+        
+        // Log all the joins that were created
+        Set<Join<Artifact, ?>> allJoins = root.getJoins();
+        log.info("Created {} joins: {}", allJoins.size(), 
+            allJoins.stream()
+                .map(join -> join.getAttribute().getName() + "(" + join.getJoinType() + ")")
+                .collect(Collectors.joining(", ")));
 
+        // Important: For one-to-many relationships, we need to ensure DISTINCT is used
+        // if we're selecting parent fields to avoid duplicates, but NOT if we want all child records
+        boolean hasCollectionFields = fields.stream().anyMatch(field -> 
+            field.startsWith("documents.") || field.equals("documents"));
+        
+        log.info("Collection fields detected: {} (fields containing 'documents': {})", 
+            hasCollectionFields, 
+            fields.stream().filter(f -> f.startsWith("documents") || f.equals("documents")).collect(Collectors.toList()));
+        
         query.multiselect(selections)
                 .where(cb.equal(root.get("id"), id));
 
+        // If we have collection fields, we don't want DISTINCT because we want all related records
+        if (!hasCollectionFields) {
+            query.distinct(true);
+            log.info("Applied DISTINCT to query since no collection fields detected");
+        } else {
+            log.info("NOT applying DISTINCT since collection fields detected: we want all related records");
+        }
+
         TypedQuery<Tuple> typedQuery = em.createQuery(query);
-        log.info("Generated SQL: {}", typedQuery.unwrap(org.hibernate.query.Query.class).getQueryString());
+        
+        // For debugging: log the generated SQL
+        try {
+            String sqlQuery = typedQuery.unwrap(org.hibernate.query.Query.class).getQueryString();
+            log.info("Generated SQL: {}", sqlQuery);
+        } catch (Exception e) {
+            log.debug("Could not extract SQL query string", e);
+        }
 
         List<Tuple> results = typedQuery.getResultList();
-        log.info("Query results size: {}", results.size());
+        log.info("Query returned {} tuples for artifact ID: {}", results.size(), id);
+        
+        // Log details about each tuple for debugging
+        for (int i = 0; i < results.size(); i++) {
+            Tuple tuple = results.get(i);
+            log.debug("Tuple {}: documents.id = {}, documents.signer.id = {}", 
+                i, 
+                tryGetValue(tuple, "documents.id"),
+                tryGetValue(tuple, "documents.signer.id"));
+        }
+        
         if (!results.isEmpty()) {
             Tuple firstResult = results.get(0);
-            log.info("Available tuple elements: {}", 
-                firstResult.getElements().stream()
-                    .map(TupleElement::getAlias)
-                    .collect(Collectors.joining(", ")));
+            Set<String> availableAliases = firstResult.getElements().stream()
+                .map(TupleElement::getAlias)
+                .collect(Collectors.toSet());
+            log.info("Available tuple aliases: {}", String.join(", ", availableAliases));
+            
+            // Log some sample values for debugging
+            if (results.size() > 1) {
+                log.info("Multiple tuples detected - this is expected for one-to-many relationships");
+                for (int i = 0; i < Math.min(3, results.size()); i++) {
+                    Tuple tuple = results.get(i);
+                    log.debug("Tuple {}: documents.id = {}", i, 
+                        tryGetValue(tuple, "documents.id"));
+                }
+            } else if (results.size() == 1 && hasCollectionFields) {
+                log.warn("Only 1 tuple returned but collection fields were requested - this might indicate a problem");
+                log.warn("Expected multiple tuples for one-to-many relationship");
+            }
         }
 
         return results;
+    }
+    
+    /**
+     * Helper method to safely get a value from a tuple
+     */
+    private Object tryGetValue(Tuple tuple, String alias) {
+        try {
+            return tuple.get(alias);
+        } catch (Exception e) {
+            return "N/A";
+        }
     }
 
     // --- Универсальное рекурсивное разворачивание полей ---
