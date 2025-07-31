@@ -1,0 +1,51 @@
+micronaut:
+  application:
+    name: proxy-service
+  http:
+    client:
+      pool:
+        enabled: true
+        max-connections: 50              # Увеличил для нагрузки
+        max-pending-acquires: 100        # Очередь запросов
+        acquire-timeout: 30s             # Timeout получения соединения
+      connect-timeout: 10s               # Timeout подключения
+      read-timeout: 30s                  # Timeout чтения
+      shutdown-timeout: 100ms
+  executors:
+    blocking:
+      type: fixed
+      nThreads: 100                      # Thread pool для блокирующих операций
+      corePoolSize: 20                   # Минимальное количество потоков
+      maximumPoolSize: 100               # Максимальное количество потоков
+      keepAliveTime: 60s                 # Время жизни неактивных потоков
+  netty:
+    event-loops:
+      default:
+        num-threads: 0
+        prefer-native-transport: true
+    event-loop-group:
+      shutdown-quiet-period: 0s
+      shutdown-timeout: 2s
+  server:
+    port: 8081
+    netty:
+      block-event-loop-check: false      # Отключена проверка блокировки
+
+storage-service:
+  url: "${STORAGE_SERVICE_URL:http://localhost:8080}"
+
+endpoints:
+  health:
+    enabled: true
+    sensitive: false
+    details-visible: anonymous           # Показывать детали health check
+  info:
+    enabled: true
+    sensitive: false
+
+logger:
+  levels:
+    com.storage.proxy: INFO
+    io.micronaut.http.client: INFO       # Уменьшил логирование HTTP клиента
+    io.micronaut.context: WARN           # Уменьшил контекстные логи
+    root: WARN                           # Общий уровень WARNING для production 

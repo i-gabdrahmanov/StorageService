@@ -1,0 +1,23 @@
+# Альтернативный подход с thin JAR
+FROM gradle:8.4-jdk21-jammy as builder
+WORKDIR /app
+
+COPY build.gradle settings.gradle ./
+COPY src ./src
+
+# Обычная сборка + копирование зависимостей  
+RUN gradle build -x test && \
+    gradle dependencies --configuration runtimeClasspath --write-locks && \
+    mkdir -p build/dependency-jars && \
+    gradle dependencies --configuration runtimeClasspath | \
+    grep -E '\.jar$' | xargs -I {} cp {} build/dependency-jars/
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+
+# Копируем thin JAR и все зависимости отдельно
+COPY --from=builder /app/build/libs/proxy-service-0.1.jar app.jar
+COPY --from=builder /app/build/dependency-jars/ libs/
+
+# Запуск с classpath
+CMD ["java", "-cp", "app.jar:libs/*", "com.storage.proxy.Application"] 

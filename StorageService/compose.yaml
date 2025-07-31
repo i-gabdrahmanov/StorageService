@@ -56,7 +56,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    command: ["-m", "64", "-vv"]
+    command: ["-m", "64", "-v"]
 
   zoonavigator:
     image: elkozmon/zoonavigator:latest
@@ -92,5 +92,19 @@ services:
         condition: service_started
       zookeeper:
         condition: service_healthy
+    networks:
+      - app-network
+
+  proxy-service:
+    build: 
+      context: ./proxy-service
+    ports:
+      - "8081:8081"
+    environment:
+      STORAGE_SERVICE_URL: "http://app:8080"
+      MICRONAUT_SERVER_PORT: 8081
+    depends_on:
+      app:
+        condition: service_started
     networks:
       - app-network

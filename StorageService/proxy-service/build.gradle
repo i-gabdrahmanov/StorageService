@@ -1,0 +1,51 @@
+plugins {
+    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("io.micronaut.application") version "4.3.8"
+    id("io.spring.dependency-management") version "1.1.7"
+    id("java")
+}
+
+version = "0.1"
+group = "com.storage.proxy"
+
+repositories {
+    mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom("io.micronaut.platform:micronaut-platform:4.3.8")
+    }
+}
+
+dependencies {
+    annotationProcessor("io.micronaut:micronaut-http-validation")
+    annotationProcessor("io.micronaut.serde:micronaut-serde-processor")
+    implementation("io.micronaut.serde:micronaut-serde-jackson")
+    implementation("io.micronaut:micronaut-http-client")
+    implementation("io.micronaut:micronaut-management")
+    implementation("io.micronaut.validation:micronaut-validation")
+    
+    runtimeOnly("ch.qos.logback:logback-classic")
+    
+    testImplementation("io.micronaut:micronaut-http-client")
+}
+
+application {
+    mainClass.set("com.storage.proxy.Application")
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion("21")
+    targetCompatibility = JavaVersion.toVersion("21")
+}
+
+micronaut {
+    version("4.3.8")
+    runtime("netty")
+    testRuntime("junit5")
+    processing {
+        incremental(true)
+        annotations("com.storage.proxy.*")
+    }
+} 

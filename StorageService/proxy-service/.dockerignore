@@ -1,0 +1,15 @@
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.jar
+*.war
+*.ear
+*.rar
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.git/
+.DS_Store
+README.md 

@@ -35,13 +35,13 @@ public class ArtifactController {
         return ResponseEntity.ok(artByJsonName);
     }
 
-    @GetMapping("json")
+    @PostMapping("json")  // Изменили на POST
     public ResponseEntity<ArtifactDto> getByNativeJsonFields (@RequestBody Map<String, Object> request) {
         ArtifactDto artByJsonName = service.getArtByNativeJsonFields(request);
         return ResponseEntity.ok(artByJsonName);
     }
 
-    @GetMapping("customFields")
+    @PostMapping("customFields")  // Изменили на POST
     public ResponseEntity<ArtifactDto> getCustomRequestById(@RequestBody CustomArtifactRequest request) {
        ArtifactDto response = service.getCustomById(request);
         return ResponseEntity.ok(response);

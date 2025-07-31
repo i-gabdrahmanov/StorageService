@@ -1,1 +1,2 @@
 rootProject.name = 'StorageService'
+include 'proxy-service'
