@@ -1,0 +1,27 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: springproxy
+
+storage-service:
+  url: http://localhost:8080
+
+# WebClient timeout настройки (все в миллисекундах)
+webclient:
+  timeout:
+    connection: 5000     # 5 секунд - время установления TCP соединения
+    response: 30000      # 30 секунд - время ожидания ответа от сервера
+    read: 30000          # 30 секунд - время чтения данных
+    write: 30000         # 30 секунд - время записи данных
+  pool:
+    max-connections: 100        # Максимум соединений в пуле
+    max-idle-time: 20000       # 20 секунд - время простоя соединения
+
+logging:
+  level:
+    com.storage.springproxy: DEBUG
+    reactor.netty: INFO
+    org.springframework.web.reactive: DEBUG
+    reactor.netty.http.client: DEBUG  # Для отладки HTTP клиента

@@ -1,0 +1,18 @@
+# Production конфигурация
+webclient:
+  timeout:
+    connection: 3000     # 3 секунды - быстрые fail-fast таймауты
+    response: 15000      # 15 секунд
+    read: 15000          # 15 секунд
+    write: 15000         # 15 секунд
+  pool:
+    max-connections: 200         # Больше соединений для prod
+    max-idle-time: 10000        # 10 секунд - быстрая очистка
+
+logging:
+  level:
+    com.storage.springproxy: INFO
+    reactor.netty: WARN
+    org.springframework.web.reactive: WARN
+    reactor.netty.http.client: WARN
+    root: WARN

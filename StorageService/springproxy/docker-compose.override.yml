@@ -1,0 +1,18 @@
+# Override файл для локальной разработки SpringProxy
+version: '3.8'
+
+services:
+  springproxy:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev,docker
+      # Более подробное логирование для разработки
+      LOGGING_LEVEL_COM_STORAGE_SPRINGPROXY: DEBUG
+      LOGGING_LEVEL_REACTOR_NETTY: DEBUG
+      JAVA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006 -Xmx512m -Xms256m"
+    # Пробрасываем порт для отладки
+    ports:
+      - "8083:8083"
+      - "5006:5006"  # Дополнительный порт для remote debugging
+    # Добавляем опции JVM для отладки
+    volumes:
+      - ./src:/app/src:ro

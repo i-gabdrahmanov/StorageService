@@ -108,3 +108,24 @@ services:
         condition: service_started
     networks:
       - app-network
+
+  springproxy:
+    build:
+      context: ./springproxy
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      STORAGE_SERVICE_URL: "http://app:8080"
+      SERVER_PORT: 8083
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      app:
+        condition: service_started
+    networks:
+      - app-network

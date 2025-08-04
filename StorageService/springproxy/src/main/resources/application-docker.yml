@@ -1,0 +1,39 @@
+# Docker конфигурация для SpringProxy
+server:
+  port: 8083
+
+# В Docker окружении основной сервис доступен по имени контейнера
+storage-service:
+  url: http://app:8080
+
+# Более консервативные настройки для Docker
+webclient:
+  timeout:
+    connection: 10000    # 10 секунд - больше времени в контейнерной среде
+    response: 45000      # 45 секунд
+    read: 45000          # 45 секунд
+    write: 45000         # 45 секунд
+  pool:
+    max-connections: 50         # Меньше соединений в контейнере
+    max-idle-time: 30000       # 30 секунд
+
+# Логирование для Docker
+logging:
+  level:
+    com.storage.springproxy: INFO
+    reactor.netty: INFO
+    org.springframework.web.reactive: INFO
+    reactor.netty.http.client: WARN
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator для health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

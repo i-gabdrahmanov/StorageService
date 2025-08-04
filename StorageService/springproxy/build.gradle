@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.storage.springproxy'
+version = '0.1.0'
+
+java {
+    sourceCompatibility = '21'
+    targetCompatibility = '21'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot WebFlux starter
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    
+    // Spring Boot starter for validation
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
+    // Spring Boot Actuator для health checks
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    
+    // Jackson for JSON processing (включен в WebFlux starter)
+    // implementation 'com.fasterxml.jackson.core:jackson-core'
+    // implementation 'com.fasterxml.jackson.core:jackson-databind'
+    
+    // WebClient включен в WebFlux starter
+    // implementation 'org.springframework:spring-webflux'
+    
+    // Test dependencies
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Spring Boot плагин автоматически создает bootJar таск
+bootJar {
+    archiveFileName = 'springproxy.jar'
+    mainClass = 'com.storage.springproxy.SpringProxyApplication'
+}

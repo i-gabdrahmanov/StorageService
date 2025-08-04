@@ -1,0 +1,18 @@
+# Конфигурация для разработки
+webclient:
+  timeout:
+    connection: 10000    # 10 секунд - более мягкие таймауты для отладки
+    response: 60000      # 60 секунд
+    read: 60000          # 60 секунд  
+    write: 60000         # 60 секунд
+  pool:
+    max-connections: 50          # Меньше соединений для dev
+    max-idle-time: 30000        # 30 секунд
+
+logging:
+  level:
+    com.storage.springproxy: DEBUG
+    reactor.netty: DEBUG
+    org.springframework.web.reactive: DEBUG
+    reactor.netty.http.client: DEBUG
+    root: INFO
