@@ -8,8 +8,9 @@ group = 'com.storage.springproxy'
 version = '0.1.0'
 
 java {
-    sourceCompatibility = '21'
-    targetCompatibility = '21'
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 repositories {
@@ -19,6 +20,7 @@ repositories {
 dependencies {
     // Spring Boot WebFlux starter
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    runtimeOnly 'org.yaml:snakeyaml'
     
     // Spring Boot starter for validation
     implementation 'org.springframework.boot:spring-boot-starter-validation'

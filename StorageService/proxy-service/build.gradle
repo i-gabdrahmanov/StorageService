@@ -24,6 +24,7 @@ dependencies {
     implementation("io.micronaut.serde:micronaut-serde-jackson")
     implementation("io.micronaut:micronaut-http-client")
     implementation("io.micronaut:micronaut-management")
+    runtimeOnly 'org.yaml:snakeyaml'
     implementation("io.micronaut.validation:micronaut-validation")
     
     runtimeOnly("ch.qos.logback:logback-classic")
@@ -36,8 +37,9 @@ application {
 }
 
 java {
-    sourceCompatibility = JavaVersion.toVersion("21")
-    targetCompatibility = JavaVersion.toVersion("21")
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 micronaut {
