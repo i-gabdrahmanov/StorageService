@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("api/v2/artifact")
@@ -35,15 +36,21 @@ public class ArtifactController {
         return ResponseEntity.ok(artByJsonName);
     }
 
-    @PostMapping("json")  // Изменили на POST
+    @PostMapping("json")
     public ResponseEntity<ArtifactDto> getByNativeJsonFields (@RequestBody Map<String, Object> request) {
         ArtifactDto artByJsonName = service.getArtByNativeJsonFields(request);
         return ResponseEntity.ok(artByJsonName);
     }
 
-    @PostMapping("customFields")  // Изменили на POST
+    @PostMapping("customFields")
     public ResponseEntity<ArtifactDto> getCustomRequestById(@RequestBody CustomArtifactRequest request) {
        ArtifactDto response = service.getCustomById(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("getById")
+    public ResponseEntity<ArtifactDto> getById(@RequestParam UUID id) {
+        ArtifactDto response = service.getById(id);
         return ResponseEntity.ok(response);
     }
 }

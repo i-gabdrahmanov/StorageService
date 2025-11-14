@@ -6,6 +6,7 @@ import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -31,9 +32,27 @@ public class Artifact extends AbstractEntity {
     @JoinColumn(name = "parent_id")
     private Artifact parent;
 
-    @OneToMany(mappedBy = "parent")
-    private List<Artifact> children;
+    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Artifact> children = new ArrayList<>();
 
     @ManyToOne
     private Employee employee;
+
+    public void addChild(Artifact child) {
+        children.add(child);
+        child.setParent(this);
+    }
+
+    public void removeChild(Artifact child) {
+        children.remove(child);
+        child.setParent(null);
+    }
+
+    public void setChildren(List<Artifact> children) {
+        this.children.clear();
+        if (children != null) {
+            children.forEach(this::addChild);
+        }
+    }
 }

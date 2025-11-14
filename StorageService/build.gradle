@@ -30,14 +30,17 @@ dependencies {
     implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
     implementation 'org.hibernate.validator:hibernate-validator:8.0.1.Final'
     implementation 'org.glassfish:jakarta.el:4.0.2'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     implementation("org.postgresql:postgresql:42.7.3")
     implementation 'com.google.guava:guava:32.0.1-android'
     implementation 'io.netty:netty-all:4.1.121.Final'
-    implementation 'org.apache.zookeeper:zookeeper:3.8.2'
+    implementation 'org.apache.zookeeper:zookeeper:3.9.4'
+    implementation 'org.mapstruct:mapstruct:1.5.2.Final'
 
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'org.hibernate:hibernate-jpamodelgen:6.6.20.Final'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
 
     implementation 'org.apache.curator:curator-framework:5.5.0'
     implementation 'org.apache.curator:curator-recipes:5.5.0'

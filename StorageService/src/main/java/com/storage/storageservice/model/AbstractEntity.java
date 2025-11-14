@@ -19,4 +19,7 @@ public abstract class AbstractEntity implements IEntity<UUID> {
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(columnDefinition = "UUID")
     private UUID id;
+
+    @Version
+    private Long version;
 }

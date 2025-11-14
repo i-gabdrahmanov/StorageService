@@ -2,32 +2,38 @@ package com.storage.storageservice.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
 import com.storage.storageservice.dto.ArtifactDto;
 import com.storage.storageservice.dto.CustomArtifactRequest;
+import com.storage.storageservice.mapper.ArtifactMapper;
 import com.storage.storageservice.model.Artifact;
 import com.storage.storageservice.repository.ArtifactRepository;
+import com.storage.storageservice.service.ArtifactBatchService;
+import com.storage.storageservice.service.ArtifactCacheService;
 import com.storage.storageservice.service.ArtifactService;
 import com.storage.storageservice.utils.DynamicDtoMapper;
 import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ArtifactServiceImpl implements ArtifactService {
 
     private final ArtifactRepository artifactRepository;
     private final DynamicDtoMapper mapper;
-    private final ExecutorService executorService;
     private final ObjectMapper objectMapper;
+    private final ArtifactCacheService artifactCacheService;
+    private final ArtifactMapper artifactMapper;
+    private final ArtifactBatchService artifactBatchService;
 
     @Override
     @Transactional
@@ -36,45 +42,60 @@ public class ArtifactServiceImpl implements ArtifactService {
     }
 
     @Override
+    @Transactional
     public void generateSomeArtifacts(int count) {
-        List<Artifact> result = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            Artifact artifact = Artifact.builder()
-                    .name(generateRandomString(20))
-                    .surname(generateRandomString(20))
-                    .payload(Map.of(
-                            "series", generateRandomString(20),
-                            "department", generateRandomString(20),
-                            "price", ThreadLocalRandom.current().nextInt()
-                    ))
-                    .children(List.of(
-                            Artifact.builder()
-                                    .name("Random")
-                                    .surname("Random")
-                                    .payload(Map.of(
-                                            "series", generateRandomString(20),
-                                            "department", generateRandomString(20),
-                                            "price", ThreadLocalRandom.current().nextInt()
-                                    ))
-                                    .build(),
-                            Artifact.builder()
-                                    .name("Random")
-                                    .surname("Random")
-                                    .payload(Map.of(
-                                            "series", generateRandomString(20),
-                                            "department", generateRandomString(20),
-                                            "price", ThreadLocalRandom.current().nextInt()
-                                    ))
-                                    .build()
-                    ))
-                    .build();
-            result.add(artifact);
-        }
+        final int BATCH_SIZE = 50;
+        List<Artifact> batch = new ArrayList<>(BATCH_SIZE);
 
-        List<List<Artifact>> partition = Lists.partition(result, 10);
-        partition.forEach(p ->
-            executorService.submit(() -> artifactRepository.saveAll(p)));
+        for (int i = 0; i < count; i++) {
+            Artifact artifact = getRandomArtifact();
+
+            batch.add(artifact);
+            if (batch.size() == BATCH_SIZE) {
+                artifactBatchService.saveBatch(new ArrayList<>(batch));
+                batch.clear();
+            }
+        }
+        if (!batch.isEmpty()) {
+            artifactBatchService.saveBatch(batch);
+        }
     }
+
+    private Artifact getRandomArtifact() {
+        Artifact parent = Artifact.builder()
+                .name(generateRandomString(20))
+                .surname(generateRandomString(20))
+                .payload(Map.of(
+                        "series", generateRandomString(20),
+                        "department", generateRandomString(20),
+                        "price", ThreadLocalRandom.current().nextInt()
+                ))
+                .build();
+
+        parent.addChild(Artifact.builder()
+                .name("Random")
+                .surname("Random")
+                .payload(Map.of(
+                        "series", generateRandomString(20),
+                        "department", generateRandomString(20),
+                        "price", ThreadLocalRandom.current().nextInt()
+                ))
+                .build());
+
+        parent.addChild(Artifact.builder()
+                .name("Random")
+                .surname("Random")
+                .payload(Map.of(
+                        "series", generateRandomString(20),
+                        "department", generateRandomString(20),
+                        "price", ThreadLocalRandom.current().nextInt()
+                ))
+                .build());
+
+        return parent;
+    }
+
+
 
     @Override
     @Transactional(readOnly = true)
@@ -110,6 +131,18 @@ public class ArtifactServiceImpl implements ArtifactService {
     public ArtifactDto getCustomById(CustomArtifactRequest request) {
         Tuple tuple = artifactRepository.findProjectedById(request.getId(), request.getRequiredResponseFields());
         return mapper.mapToDto(tuple, request.getRequiredResponseFields(), ArtifactDto.class);
+    }
+
+    @Transactional
+    @Override
+    public ArtifactDto getById(UUID id) {
+        ArtifactDto artifactDto = artifactCacheService.get(id.toString());
+        if (artifactDto != null) {
+            log.info("From redis cache");
+            return artifactDto;
+        }
+        Artifact artifact = artifactRepository.findById(id).orElseThrow();
+        return artifactMapper.toDto(artifact);
     }
 
     private void addNewArtifactRecursive(ArtifactDto dto, Artifact parent) {
