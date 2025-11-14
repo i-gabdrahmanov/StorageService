@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
@@ -14,6 +15,7 @@ import java.util.Map;
 @NoArgsConstructor
 public class ArtifactDto {
 
+    private UUID id;
     private String name;
     private String surname;
     private Map<String, Object> payload;
