@@ -5,10 +5,12 @@ networks:
 volumes:
   pgdata:
   redis-data:
+  zookeeper-data:
+  zookeeper-datalog:
 
 services:
   zookeeper:
-    image: zookeeper:3.9
+    image: zookeeper:3.8
     container_name: zookeeper
     hostname: zookeeper  # Фиксирует имя в DNS
     ports:
@@ -24,6 +26,10 @@ services:
       retries: 5
     networks:
       - app-network
+    volumes:
+      - zookeeper-data:/data
+      - zookeeper-datalog:/datalog
+      - zookeeper-datalog:/datalog
 
   db:
     image: postgres:16.3
