@@ -31,7 +31,7 @@ public class ZkConfig {
     @Bean
     public ZkConfigWatcher zkJsonConfigWatcher(CuratorFramework client, AtomicReference<AppParamsConfig> currentAppConfig) {
         ZkConfigWatcher watcher = new ZkConfigWatcher(client, objectMapper, currentAppConfig);
-        watcher.startWatching("storageservice/app");
+        watcher.startWatching("/zookeeper/storageservice/app");
         return watcher;
     }
 
