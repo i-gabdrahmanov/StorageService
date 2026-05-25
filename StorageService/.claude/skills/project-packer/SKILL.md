@@ -74,18 +74,41 @@ python3 .claude/skills/project-packer/scripts/sanitize.py <merged.txt> -o <sanit
 
 ## Что санитизируется
 
-| Категория | Что ищем | Замена |
-|---|---|---|
-| packages | `com.storage.*` пакеты и пути | `com.example.*` |
-| passwords | `password:`, `*_PASSWORD=`, `username:` | `<REDACTED>` |
-| database | JDBC URL, `POSTGRES_DB` | `jdbc:postgresql://dbhost:5432/appdb` |
-| redis | `REDIS_HOST`, `SPRING_DATA_REDIS_HOST` | `redis-host` |
-| memcached | `getAddresses("...")`, `MEMCACHED_HOST` | `memcached-host:11211` |
-| zookeeper | `"zookeeper:2181"`, `ZK_HOSTS`, ZK-пути | `zk-host:2181` |
-| kafka | `bootstrap-servers` | `kafka-host:9092` |
-| app_names | `rootProject.name`, `spring.application.name` | `ExampleService` |
+Санитизация работает агрессивно — строки с чувствительными данными **полностью удаляются** из конфигов, а в Java-коде адреса заменяются на плейсхолдеры.
 
-Порядок замены пакетов: от длинных к коротким, чтобы `com.storage.storageservice` заменилось на `com.example.app`, а не на `com.example.storageservice`.
+### Удаление строк (конфиги, compose, properties)
+
+| Категория | Что удаляется |
+|---|---|
+| Credentials | Строки с `password`, `username`, `*_PASSWORD`, `*_USER`, `*_SECRET`, `*_TOKEN`, `*_API_KEY` |
+| Database | JDBC URL, `POSTGRES_DB`, `POSTGRES_*`, `DATASOURCE_URL`, `pg_isready` |
+| Redis | `REDIS_HOST`, `REDIS_PORT`, `SPRING_DATA_REDIS_*`, `redis-cli`, `redis-server` |
+| Memcached | `MEMCACHED_HOST`, `MEMCACHED_PORT` |
+| ZooKeeper | `ZK_HOSTS`, `ZOO_SERVERS`, `ZOO_MY_ID`, `*ZOOKEEPER_CONNECT_STRING` |
+| Kafka | `bootstrap-servers`, `KAFKA_BOOTSTRAP_SERVERS` |
+| Addresses | Любые строки с `localhost`, `127.0.0.1`, `http://<host>:<port>` |
+| Infrastructure | `STORAGE_SERVICE_URL`, `JAVA_TOOL_OPTIONS`, `SPRING_PROFILES_ACTIVE`, порт-маппинги, healthcheck-команды, `hostname:`, `container_name:` |
+
+### Замены в Java-коде (структура кода сохраняется)
+
+| Оригинал | Замена |
+|---|---|
+| `"memcached:11211"` | `"${MEMCACHED_ADDRESS}"` |
+| `"zookeeper:2181"` | `"${ZOOKEEPER_ADDRESS}"` |
+| `"http://localhost:8080"` | `"${SERVICE_URL}"` |
+| `"/zookeeper/storageservice/app"` | `"${ZOOKEEPER_PATH}"` |
+| `@Value("${...host:localhost}")` | `@Value("${...host:${CONFIGURE_HOST}}")` |
+
+### Переименование пакетов
+
+| Оригинал | Замена |
+|---|---|
+| `com.storage.storageservice` | `com.example.app` |
+| `com.storage.springproxy` | `com.example.springproxy` |
+| `com.storage.proxy` | `com.example.proxy` |
+| `com.storage` | `com.example` |
+
+Порядок замены: от длинных к коротким, чтобы `com.storage.storageservice` заменилось на `com.example.app`, а не на `com.example.storageservice`. Пути в файловых маркерах тоже переименовываются (`com/storage/` → `com/example/`).
 
 ## Структура скилла
 
