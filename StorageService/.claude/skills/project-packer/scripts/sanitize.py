@@ -16,53 +16,128 @@ PACKAGE_RENAMES = [
     ('com/storage/proxy', 'com/example/proxy'),
     ('com.storage', 'com.example'),
     ('com/storage', 'com/example'),
+    ('StorageService', 'ExampleService'),
+    ('storageService', 'exampleService'),
+    ('storage-service', 'example-service'),
+    ('storage_service', 'example_service'),
+    ('storageservice', 'exampleservice'),
 ]
 
-# Phase B: regex patterns grouped by category
-# Each entry: (category_name, [(pattern, replacement, flags)])
-SANITIZE_RULES: list[tuple[str, list[tuple[str, str, int]]]] = [
-    ('passwords', [
-        (r'(password\s*:\s*)["\']?[^"\'\s\n#]+["\']?', r'\1"<REDACTED>"', re.IGNORECASE),
-        (r'(password\s*=\s*)[^\s\n#]+', r'\1<REDACTED>', re.IGNORECASE),
-        (r'(\w*PASSWORD\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1<REDACTED>', re.IGNORECASE),
-        (r'(username\s*:\s*)["\']?[^"\'\s\n#]+["\']?', r'\1"<REDACTED>"', re.IGNORECASE),
-        (r'(\w*_?USER\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1<REDACTED>', re.IGNORECASE),
-    ]),
-    ('database', [
-        (r'jdbc:postgresql://[^\s"\'#]+', 'jdbc:postgresql://dbhost:5432/appdb', 0),
-        (r'(POSTGRES_DB\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1appdb', 0),
-        (r'(pg_isready\s+-U\s+)\S+(\s+-d\s+)\S+', r'\1user\2appdb', 0),
-    ]),
-    ('redis', [
-        (r'(REDIS_HOST\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1redis-host', re.IGNORECASE),
-        (r'(SPRING_DATA_REDIS_HOST\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1redis-host', 0),
-        (r'(SPRING_DATA_REDIS_PORT\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\16379', 0),
-        (r'(\$\{REDIS_HOST:)[^}]+(})', r'\1redis-host\2', 0),
-        (r'(\$\{REDIS_PORT:)[^}]+(})', r'\g<1>6379\2', 0),
-    ]),
-    ('memcached', [
-        (r'(getAddresses\s*\(\s*")[^"]+(")', r'\1memcached-host:11211\2', 0),
-        (r'(MEMCACHED_HOST\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1memcached-host', 0),
-        (r'(MEMCACHED_PORT\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\g<1>11211', 0),
-    ]),
-    ('zookeeper', [
-        (r'"zookeeper:\d+"', '"zk-host:2181"', 0),
-        (r'(ZOOKEEPER_CONNECT_STRING\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1zk-host:2181', 0),
-        (r'(ZK_HOSTS\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1zk-host:2181', 0),
-        (r'(ZOO_SERVERS\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1server.1=zk-host:2888:3888;2181', 0),
-        (r'"/zookeeper/[^"]*"', '"/zookeeper/app/config"', 0),
-        (r'(hostname:\s*)zookeeper', r'\1zk-host', 0),
-        (r'(container_name:\s*)zookeeper', r'\1zk-host', 0),
-    ]),
-    ('kafka', [
-        (r'(bootstrap[._-]servers\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1kafka-host:9092', re.IGNORECASE),
-        (r'(KAFKA_BOOTSTRAP_SERVERS\s*[:=]\s*)["\']?[^"\'\s\n#]+["\']?', r'\1kafka-host:9092', 0),
-    ]),
-    ('app_names', [
-        (r"(rootProject\.name\s*=\s*')[^']+(')", r"\1ExampleService\2", 0),
-        (r'(name:\s*)StorageService', r'\1example-service', 0),
-        (r'(container_name:\s*)redis', r'\1cache', 0),
-    ]),
+# Phase B: lines to DELETE entirely (regex matched against each line)
+# These target config/compose/properties/Dockerfile — not Java source
+DELETE_LINE_PATTERNS = [
+    # --- Credentials ---
+    re.compile(r'password\s*[:=]', re.IGNORECASE),
+    re.compile(r'username\s*[:=]', re.IGNORECASE),
+    re.compile(r'\w*_?PASSWORD\s*[:=]', re.IGNORECASE),
+    re.compile(r'\w*_?USER\s*[:=]', re.IGNORECASE),
+    re.compile(r'\w*_?SECRET\s*[:=]', re.IGNORECASE),
+    re.compile(r'\w*_?TOKEN\s*[:=]', re.IGNORECASE),
+    re.compile(r'\w*_?API_KEY\s*[:=]', re.IGNORECASE),
+    re.compile(r'\w*_?CREDENTIALS?\s*[:=]', re.IGNORECASE),
+
+    # --- JDBC / Datasource ---
+    re.compile(r'jdbc:\w+://'),
+    re.compile(r'\w*DATASOURCE_URL\s*[:=]', re.IGNORECASE),
+    re.compile(r'^\s*url:\s*jdbc:', re.IGNORECASE),
+
+    # --- Postgres env ---
+    re.compile(r'POSTGRES_DB\s*[:=]'),
+    re.compile(r'POSTGRES_SHARED_BUFFERS\s*[:=]'),
+    re.compile(r'POSTGRES_EFFECTIVE_CACHE_SIZE\s*[:=]'),
+    re.compile(r'pg_isready'),
+
+    # --- Redis ---
+    re.compile(r'SPRING_DATA_REDIS_HOST\s*[:=]'),
+    re.compile(r'SPRING_DATA_REDIS_PORT\s*[:=]'),
+    re.compile(r'REDIS_HOST\s*[:=]', re.IGNORECASE),
+    re.compile(r'REDIS_PORT\s*[:=]', re.IGNORECASE),
+    re.compile(r'redis-cli'),
+    re.compile(r'redis-server'),
+
+    # --- Memcached ---
+    re.compile(r'MEMCACHED_HOST\s*[:=]'),
+    re.compile(r'MEMCACHED_PORT\s*[:=]'),
+
+    # --- ZooKeeper ---
+    re.compile(r'ZK_HOSTS\s*[:=]'),
+    re.compile(r'ZOO_SERVERS\s*[:=]'),
+    re.compile(r'ZOO_MY_ID\s*[:=]'),
+    re.compile(r'ZOOKEEPER_CONNECT_STRING\s*[:=]', re.IGNORECASE),
+    re.compile(r'ZOO_4LW_COMMANDS_WHITELIST\s*[:=]'),
+    re.compile(r'echo\s+ruok\s*\|'),
+
+    # --- Kafka ---
+    re.compile(r'bootstrap[._-]servers\s*[:=]', re.IGNORECASE),
+    re.compile(r'KAFKA_BOOTSTRAP_SERVERS\s*[:=]'),
+
+    # --- Service URLs / internal addresses ---
+    re.compile(r'STORAGE_SERVICE_URL\s*[:=]'),
+    re.compile(r'MICRONAUT_SERVER_PORT\s*[:=]'),
+    re.compile(r'SERVER_PORT\s*[:=]'),
+    re.compile(r'HTTP_PORT\s*[:=]'),
+    re.compile(r'JAVA_TOOL_OPTIONS\s*[:=]'),
+    re.compile(r'SPRING_PROFILES_ACTIVE\s*[:=]'),
+
+    # --- Compose infrastructure ---
+    re.compile(r'^\s*hostname:\s*\S'),
+    re.compile(r'^\s*container_name:\s*\S'),
+    re.compile(r'^\s*shm_size:'),
+
+    # --- Port mappings in compose (e.g. "5432:5432") ---
+    re.compile(r'^\s*-\s*"\d+:\d+"'),
+
+    # --- Any line with localhost / 127.0.0.1 (not in Java code) ---
+    re.compile(r'localhost'),
+    re.compile(r'127\.0\.0\.1'),
+
+    # --- Internal http:// URLs pointing to services ---
+    re.compile(r'http://\w+:\d+'),
+
+    # --- Healthchecks with infrastructure refs ---
+    re.compile(r'curl\s'),
+    re.compile(r'actuator/health'),
+    re.compile(r'nc\s'),
+
+    # --- IP addresses ---
+    re.compile(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'),
+]
+
+# Patterns that should NOT trigger deletion even if a DELETE pattern matches.
+# This protects Java source code, imports, class names, annotations, etc.
+KEEP_LINE_PATTERNS = [
+    re.compile(r'^\s*(package|import)\s'),
+    re.compile(r'^\s*(public|private|protected|static|final|abstract|class|interface|enum|void|return|throw|new |if |else|for |while|try|catch)\b'),
+    re.compile(r'^\s*@\w'),          # annotations (@Value, @Bean, etc.)
+    re.compile(r'^\s*\*'),           # javadoc
+    re.compile(r'^\s*//===FILE:'),   # file markers
+    re.compile(r'^\s*//===END_FILE'),
+    re.compile(r'^\s*//===MERGED'),
+    re.compile(r'^\s*\w+\s*\('),     # method calls (e.g. builder.setXxx(...))
+    re.compile(r'^\s*\.\w+\('),      # chained calls (.setHost(...))
+    re.compile(r'^\s*}'),            # closing braces
+]
+
+# Phase C: replacements inside Java string literals (keep line, replace value)
+JAVA_LITERAL_REPLACEMENTS = [
+    (re.compile(r'"memcached:\d+"'), '"${MEMCACHED_ADDRESS}"'),
+    (re.compile(r'"zookeeper:\d+"'), '"${ZOOKEEPER_ADDRESS}"'),
+    (re.compile(r'"localhost:\d+"'), '"${SERVICE_ADDRESS}"'),
+    (re.compile(r'"http://localhost:\d+"'), '"${SERVICE_URL}"'),
+    (re.compile(r'"http://localhost:\d+/[^"]*"'), '"${SERVICE_URL}"'),
+    (re.compile(r'"/zookeeper/[^"]*"'), '"${ZOOKEEPER_PATH}"'),
+    # @Value defaults with localhost
+    (re.compile(r'(\$\{[^}]*:)http://localhost:\d+[^}]*(})'), r'\1${SERVICE_URL}\2'),
+    (re.compile(r'(\$\{[^}]*:)localhost(})'), r'\1${CONFIGURE_HOST}\2'),
+    # Spring placeholders with default values containing hosts/ports
+    (re.compile(r'\$\{REDIS_HOST:[^}]+}'), '${REDIS_HOST}'),
+    (re.compile(r'\$\{REDIS_PORT:[^}]+}'), '${REDIS_PORT}'),
+]
+
+# Phase D: app name sanitization (safe regex replacements)
+APP_NAME_RULES = [
+    (re.compile(r"(rootProject\.name\s*=\s*')[^']+(')", re.IGNORECASE), r"\1ExampleService\2"),
+    (re.compile(r'(name:\s*)StorageService'), r'\1example-service'),
 ]
 
 
@@ -76,32 +151,69 @@ def sanitize_packages(text: str) -> tuple[str, dict[str, int]]:
     return text, counts
 
 
-def sanitize_patterns(text: str) -> tuple[str, dict[str, int]]:
-    counts: dict[str, int] = {}
-    for category, rules in SANITIZE_RULES:
-        total = 0
-        for pattern, replacement, flags in rules:
-            text, n = re.subn(pattern, replacement, text, flags=flags)
-            total += n
-        counts[category] = total
-    return text, counts
+def is_java_or_code_line(line: str) -> bool:
+    return any(p.search(line) for p in KEEP_LINE_PATTERNS)
+
+
+def should_delete_line(line: str) -> bool:
+    if is_java_or_code_line(line):
+        return False
+    return any(p.search(line) for p in DELETE_LINE_PATTERNS)
+
+
+def sanitize_lines(text: str) -> tuple[str, dict[str, int]]:
+    lines = text.split('\n')
+    result: list[str] = []
+    deleted = 0
+
+    for line in lines:
+        if should_delete_line(line):
+            deleted += 1
+        else:
+            result.append(line)
+
+    return '\n'.join(result), {'deleted_lines': deleted}
+
+
+def sanitize_java_literals(text: str) -> tuple[str, dict[str, int]]:
+    total = 0
+    for pattern, replacement in JAVA_LITERAL_REPLACEMENTS:
+        text, n = pattern.subn(replacement, text)
+        total += n
+    return text, {'java_literals': total}
+
+
+def sanitize_app_names(text: str) -> tuple[str, dict[str, int]]:
+    total = 0
+    for pattern, replacement in APP_NAME_RULES:
+        text, n = pattern.subn(replacement, text)
+        total += n
+    return text, {'app_names': total}
 
 
 def sanitize(text: str) -> tuple[str, dict[str, int]]:
-    text, pkg_counts = sanitize_packages(text)
-    text, pat_counts = sanitize_patterns(text)
-
     all_counts: dict[str, int] = {}
+
+    text, pkg_counts = sanitize_packages(text)
     pkg_total = sum(pkg_counts.values())
     if pkg_total:
         all_counts['packages'] = pkg_total
-    all_counts.update(pat_counts)
+
+    text, del_counts = sanitize_lines(text)
+    all_counts.update(del_counts)
+
+    text, lit_counts = sanitize_java_literals(text)
+    all_counts.update(lit_counts)
+
+    text, name_counts = sanitize_app_names(text)
+    all_counts.update(name_counts)
+
     return text, all_counts
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description='Sanitize a merged project file: remove passwords, addresses, package names'
+        description='Sanitize a merged project file: delete passwords, addresses, package names'
     )
     parser.add_argument('input_file', type=Path, help='Path to merged file')
     parser.add_argument('-o', '--output', type=Path, required=True, help='Output sanitized file')
@@ -116,9 +228,9 @@ def main() -> int:
     sanitized, counts = sanitize(text)
 
     total = sum(counts.values())
-    print(f'Sanitization report ({total} total replacements):')
+    print(f'Sanitization report ({total} total actions):')
     for category, count in counts.items():
-        print(f'  {category:>16}: {count} replacements')
+        print(f'  {category:>16}: {count}')
 
     if args.dry_run:
         print('\nDry run — no file written.')
