@@ -61,27 +61,31 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description='Split a merged project file back into directory structure'
     )
-    parser.add_argument('merged_file', type=Path, help='Path to merged file')
+    parser.add_argument(
+        'merged_files', type=Path, nargs='+',
+        help='Path(s) to merged file(s) — supports multiple parts',
+    )
     parser.add_argument('-o', '--output', type=Path, required=True, help='Output directory')
     parser.add_argument('--force', action='store_true', help='Write into non-empty directory')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be created')
     args = parser.parse_args()
 
-    if not args.merged_file.is_file():
-        print(f'Error: {args.merged_file} not found', file=sys.stderr)
-        return 1
-
-    try:
-        entries = parse_merged(args.merged_file)
-    except ValueError as e:
-        print(f'Parse error: {e}', file=sys.stderr)
-        return 1
+    entries: list[tuple[str, str]] = []
+    for mf in sorted(args.merged_files):
+        if not mf.is_file():
+            print(f'Error: {mf} not found', file=sys.stderr)
+            return 1
+        try:
+            entries.extend(parse_merged(mf))
+        except ValueError as e:
+            print(f'Parse error in {mf.name}: {e}', file=sys.stderr)
+            return 1
 
     if not entries:
-        print('No file blocks found in merged file.', file=sys.stderr)
+        print('No file blocks found in merged file(s).', file=sys.stderr)
         return 1
 
-    print(f'Found {len(entries)} files in merged archive')
+    print(f'Found {len(entries)} files across {len(args.merged_files)} part(s)')
 
     if args.dry_run:
         for rel_path, content in entries:
